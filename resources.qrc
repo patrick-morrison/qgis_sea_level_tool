@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/plugins/sea_level_tool" >
+        <file>icon.png</file>
+    </qresource>
+</RCC>
