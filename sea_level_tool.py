@@ -28,6 +28,7 @@ from qgis.core import QgsProject, QgsMapLayerProxyModel, QgsExpressionContextUti
 from pyqtgraph import PlotWidget, plot
 import pyqtgraph as pg
 from PyQt5.QtWidgets import QApplication
+import numpy as np
 # Initialize Qt resources from file resources.py
 from .resources import *
 
@@ -226,12 +227,37 @@ class SeaLevelTool:
             self.dockwidget.level.setValue(level_slider)
             self.dockwidget.level.valueChanged.connect(lambda v: self.adjust_levels("slider", v))
 
+    def adjust_ages(self, type, moved_value):
+        age_box = self.dockwidget.age.value()
+        age_slider = self.dockwidget.age_slider.value()
+
+        if type == 'slider':
+            self.dockwidget.age_slider.sliderMoved.disconnect()
+            self.dockwidget.age_slider.setValue(age_box)
+            self.dockwidget.age_slider.sliderMoved.connect(lambda v: self.adjust_ages('box', v))
+
+        if type == 'box':
+            self.dockwidget.age.valueChanged.disconnect()
+            self.dockwidget.age.setValue(age_slider)
+            self.dockwidget.age.valueChanged.connect(lambda v: self.adjust_ages("slider", v))
+
     def set_level_max(self, v):
         self.dockwidget.level.setMaximum(v)
+        self.dockwidget.level_min.setMaximum(v)
         self.dockwidget.level_slider.setMaximum(v)
     def set_level_min(self, v):
         self.dockwidget.level.setMinimum(v)
+        self.dockwidget.level_max.setMinimum(v)
         self.dockwidget.level_slider.setMinimum(v)
+
+    def set_oldest(self, v):
+        self.dockwidget.age.setMaximum(v)
+        self.dockwidget.youngest.setMaximum(v)
+        self.dockwidget.age_slider.setMaximum(v)
+    def set_youngest(self, v):
+        self.dockwidget.level.setMinimum(v)
+        self.dockwidget.oldest.setMinimum(v)
+        self.dockwidget.age_slider.setMinimum(v)
     
     def msl(self):
         global total_change
@@ -240,33 +266,88 @@ class SeaLevelTool:
     def render(self):
         self.iface.mapCanvas().saveAsImage(f"/Users/patrickmorrison/Downloads/render/render_{total_change}.png")
 
-    def animate(self, range, bath):
+    def animate(self, range):
 
         for step in range:
-            self.change_sea(step, bath)
+            self.change_sea(step)
             self.iface.mapCanvas().refreshAllLayers()
             QApplication.processEvents()
             self.render
             QApplication.processEvents()
             
 
-    def change_sea(self, change, layer):
-        global total_change
-        sea_level = change-total_change
+    def change_sea(self, level):
+        try:
+            global total_change
+            sea_level = level-total_change
 
-        items = layer.renderer().shader().rasterShaderFunction().colorRampItemList()
-            
-        for item in items:
-            item.value += sea_level
+            global bath
+
+            items = bath.renderer().shader().rasterShaderFunction().colorRampItemList()
                 
-        total_change += sea_level
-        project = QgsProject.instance()
-        QgsExpressionContextUtils.setProjectVariable(project,'sea_level',total_change)
-            
-        layer.renderer().shader().rasterShaderFunction().setColorRampItemList(items)
-        layer.triggerRepaint()
-        layer.emitStyleChanged()
-    
+            for item in items:
+                item.value += sea_level
+                    
+            total_change += sea_level
+            self.h_bar.setPos(total_change)
+            QgsExpressionContextUtils.setProjectVariable(QgsProject.instance(),'sea_level',total_change)
+                
+            bath.renderer().shader().rasterShaderFunction().setColorRampItemList(items)
+            bath.triggerRepaint()
+            bath.emitStyleChanged()
+
+        except NameError:
+            print('No elevation data')
+
+    def select_raster_fields(self):
+        global bath
+        self.change_sea(0)
+        self.dockwidget.level.setValue(0)
+        bath = self.dockwidget.raster_layer_box.currentLayer()
+        print(bath)
+
+    def select_curve_fields(self):
+        global curve
+
+        data = self.dockwidget.curve_layer_box.currentLayer()
+        if data:
+            curve = {}
+            for feature in data.getFeatures():
+                age = float(feature["age"])
+                level = float(feature["sea_level"])
+                curve[age] = level
+        else:
+             curve = {0: 0, 10:0, 20:-120, 30:-100, 40:-80,50:-70,60:-70,70:-80,80:-50,90:-50,100:-30,110:-50,120:-10,130:5}
+
+        self.dockwidget.level_min.setValue(min(list(curve.values())))
+        self.dockwidget.level_max.setValue(max(list(curve.values())))
+        self.dockwidget.oldest.setValue(max(list(curve.keys())))
+        self.dockwidget.youngest.setValue(min(list(curve.keys())))
+
+        if self.dockwidget.interp_check.isChecked():
+            global curve_interp
+            x = list(range(self.dockwidget.youngest.value(), self.dockwidget.oldest.value()+1, 1))
+            y = np.interp(x, list(curve.keys()), list(curve.values()))
+            curve = dict(zip(x, y))
+        
+        pen = pg.mkPen(color=(0, 0, 0), width=3)
+        graph = self.dockwidget.curve_graph
+        graph.clear()
+        graph.plot(list(curve.keys()),list(curve.values()), symbol='o', pen=pen, symbolSize=10)
+        graph.addItem(self.h_bar)
+        graph.addItem(self.v_bar)
+
+
+    def update_curve(self):
+        global total_change
+        total_change = 0
+
+    def change_age(self, age):
+        closest_age = min(curve, key=lambda x:abs(x-age))
+        self.dockwidget.level.setValue(curve[closest_age])
+        QgsExpressionContextUtils.setProjectVariable(QgsProject.instance(),'age',age)
+        self.v_bar.setPos(age)
+        
 
     #--------------------------------------------------------------------------
 
@@ -294,10 +375,18 @@ class SeaLevelTool:
             self.iface.addDockWidget(Qt.BottomDockWidgetArea, self.dockwidget)
             self.dockwidget.show()
         
-        bath = QgsProject.instance().mapLayersByName('bath')[0]
-        #self.dockwidget.mMapLayerComboBox.setFilters(QgsMapLayerProxyModel.RasterLayer)
-        #bath = self.dockwidget.mMapLayerComboBox.currentLayer()
+        global bath
+        #bath = QgsProject.instance().mapLayersByName('bath')[0]
+        self.dockwidget.raster_layer_box.setFilters(QgsMapLayerProxyModel.RasterLayer)
+        self.dockwidget.raster_layer_box.layerChanged.connect(self.select_raster_fields)
+        self.dockwidget.raster_layer_box.setCurrentIndex(0)
+        #bath = self.dockwidget.raster_layer_box.currentLayer()
         self.msl()
+
+        self.dockwidget.curve_layer_box.setFilters(QgsMapLayerProxyModel.NoGeometry)
+        self.dockwidget.curve_layer_box.layerChanged.connect(self.select_curve_fields)
+        self.dockwidget.curve_layer_box.setCurrentIndex(0)
+
         
         #Set title decoration to [% @sea_level %]m
         project = QgsProject.instance()
@@ -310,31 +399,43 @@ class SeaLevelTool:
         min = self.dockwidget.level_min.value()
         steps = list(range(min, max, 1))
 
-        self.dockwidget.animate_button.clicked.connect(lambda: self.animate(steps, bath))
+        self.dockwidget.animate_button.clicked.connect(lambda: self.animate(steps))
 
-        data = QgsProject.instance().mapLayersByName('sea_level_curve_basic')[0]
-        curve = {}
-        for feature in data.getFeatures():
-            age = float(feature["age"])
-            level = float(feature["sea_level"])
-            curve[age] = level
+        #sea_level_data = QgsProject.instance().mapLayersByName('sea_level_curve_basic')[0]
 
+
+        global curve
+        curve = {0: 0, 10:0, 20:-120, 30:-100, 40:-80,50:-70,60:-70,70:-80,80:-50,90:-50,100:-30,110:-50,120:-10,130:5}
+        self.dockwidget.interp_check.stateChanged.connect(self.select_curve_fields)
 
         pen = pg.mkPen(color=(0, 0, 0), width=3)
         graph = self.dockwidget.curve_graph
-        graph.plot([0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0],
-        [0.0, 0.0, -130.0, -100.0, -80.0, -75.0, -70.0, -60.0, -60.0, -60.0, -60.0], symbol='o', pen=pen)
+        graph.plot(list(curve.keys()),list(curve.values()), symbol='o', pen=pen, symbolSize=10)
         styles = {'color':'b', 'font-size':'12px'}
         graph.setLabel('left', 'Sea level (m)', **styles)
-        graph.setLabel('bottom', 'Age (ky)', **styles)
+        graph.setLabel('bottom', 'Age (ka)', **styles)
         graph.showGrid(x=True, y=True)
+        graph.invertX(True)
+        current_pen = pg.mkPen(color='b', width=2, style=QtCore.Qt.DotLine)
+        self.h_bar = pg.InfiniteLine(movable=False, angle=0,pos=0,pen=current_pen)
+        graph.addItem(self.h_bar)
+        self.v_bar = pg.InfiniteLine(movable=False, angle=90,pos=0,pen=current_pen)
+        graph.addItem(self.v_bar)
 
-        self.dockwidget.level.valueChanged.connect(lambda v: self.change_sea(v, bath))
-        self.dockwidget.level_slider.valueChanged.connect(lambda v: self.change_sea(v, bath))
-
+        self.dockwidget.level.valueChanged.connect(lambda v: self.change_sea(v))
+        self.dockwidget.level_slider.valueChanged.connect(lambda v: self.change_sea(v))
 
         self.dockwidget.level.valueChanged.connect(lambda v: self.adjust_levels('slider', v))
         self.dockwidget.level_slider.sliderMoved.connect(lambda v: self.adjust_levels("box", v))
 
+        self.dockwidget.age.valueChanged.connect(lambda v: self.adjust_ages('slider', v))
+        self.dockwidget.age_slider.sliderMoved.connect(lambda v: self.adjust_ages("box", v))
+
         self.dockwidget.level_min.valueChanged.connect(lambda v: self.set_level_min(v))
         self.dockwidget.level_max.valueChanged.connect(lambda v: self.set_level_max(v))
+
+        self.dockwidget.age.valueChanged.connect(lambda v: self.change_age(v))
+        self.dockwidget.age_slider.valueChanged.connect(lambda v: self.change_age(v))
+
+        self.dockwidget.oldest.valueChanged.connect(lambda v: self.set_oldest(v))
+        self.dockwidget.youngest.valueChanged.connect(lambda v: self.set_youngest(v))
