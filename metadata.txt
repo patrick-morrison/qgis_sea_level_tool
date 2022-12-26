@@ -5,8 +5,8 @@
 [general]
 name=SeaLevelTool
 qgisMinimumVersion=3.0
-description=This allows you to adjust sea level according to sea level curves
-version=0.1
+description=This allows you to adjust sea level according to sea level curves.
+version=1.0
 author=Patrick Morrison
 email=patrick.morrison@research.uwa.edu.au
 
@@ -23,13 +23,13 @@ hasProcessingProvider=no
 # changelog=
 
 # Tags are comma separated with spaces allowed
-tags=python
+tags=python, sea level, archaeology, geomorphology
 
-homepage=http://homepage
+homepage=https://github.com/patrick-morrison/qgis_sea_level_tool
 category=Plugins
 icon=icon.png
 # experimental flag
-experimental=True
+experimental=False
 
 # deprecated flag (applies to the whole plugin, not just a single version)
 deprecated=False
