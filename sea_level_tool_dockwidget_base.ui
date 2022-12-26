@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1004</width>
-    <height>227</height>
+    <width>883</width>
+    <height>302</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,23 +15,57 @@
   </property>
   <widget class="QWidget" name="dockWidgetContents">
    <layout class="QGridLayout" name="gridLayout">
-    <item row="3" column="3">
-     <widget class="QSlider" name="age_slider">
-      <property name="layoutDirection">
-       <enum>Qt::RightToLeft</enum>
+    <item row="0" column="2" rowspan="4" colspan="3">
+     <widget class="PlotWidget" name="curve_graph" native="true"/>
+    </item>
+    <item row="0" column="0">
+     <widget class="QPushButton" name="style_button">
+      <property name="enabled">
+       <bool>false</bool>
       </property>
-      <property name="maximum">
-       <number>130</number>
-      </property>
-      <property name="orientation">
-       <enum>Qt::Horizontal</enum>
+      <property name="text">
+       <string>Style</string>
       </property>
      </widget>
     </item>
-    <item row="3" column="7">
-     <widget class="QSpinBox" name="age"/>
+    <item row="2" column="1">
+     <widget class="QgsMapLayerComboBox" name="curve_layer_box">
+      <property name="toolTip">
+       <string>curve layer</string>
+      </property>
+      <property name="allowEmptyLayer">
+       <bool>true</bool>
+      </property>
+     </widget>
     </item>
-    <item row="3" column="2">
+    <item row="3" column="0">
+     <widget class="QComboBox" name="composer_box">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
+     </widget>
+    </item>
+    <item row="4" column="1">
+     <widget class="QPushButton" name="fileButton">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
+      <property name="text">
+       <string>Save as...</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="0">
+     <widget class="QgsMapLayerComboBox" name="raster_layer_box">
+      <property name="toolTip">
+       <string>elevation layer</string>
+      </property>
+      <property name="allowEmptyLayer">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+    <item row="4" column="2">
      <widget class="QSpinBox" name="oldest">
       <property name="buttonSymbols">
        <enum>QAbstractSpinBox::UpDownArrows</enum>
@@ -44,48 +78,37 @@
       </property>
      </widget>
     </item>
-    <item row="3" column="0">
-     <widget class="QPushButton" name="animate_button">
-      <property name="text">
-       <string>Animate</string>
+    <item row="4" column="3">
+     <widget class="QSlider" name="age_slider">
+      <property name="layoutDirection">
+       <enum>Qt::RightToLeft</enum>
+      </property>
+      <property name="maximum">
+       <number>130</number>
+      </property>
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
       </property>
      </widget>
     </item>
-    <item row="3" column="4">
+    <item row="4" column="4">
      <widget class="QSpinBox" name="youngest">
       <property name="maximum">
        <number>200</number>
       </property>
      </widget>
     </item>
-    <item row="1" column="7">
-     <widget class="QSpinBox" name="level">
-      <property name="minimum">
-       <number>-130</number>
+    <item row="0" column="1">
+     <widget class="QCheckBox" name="interp_check">
+      <property name="enabled">
+       <bool>true</bool>
       </property>
-      <property name="maximum">
-       <number>0</number>
-      </property>
-     </widget>
-    </item>
-    <item row="3" column="1">
-     <widget class="QPushButton" name="render_button">
       <property name="text">
-       <string>Render</string>
+       <string>Interp.</string>
       </property>
      </widget>
     </item>
-    <item row="0" column="7">
-     <widget class="QSpinBox" name="level_max">
-      <property name="minimum">
-       <number>-1000</number>
-      </property>
-      <property name="maximum">
-       <number>1000</number>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="7">
+    <item row="2" column="6">
      <widget class="QSpinBox" name="level_min">
       <property name="minimum">
        <number>-1000</number>
@@ -98,7 +121,21 @@
       </property>
      </widget>
     </item>
-    <item row="0" column="5" rowspan="3">
+    <item row="1" column="0">
+     <widget class="QLabel" name="label_2">
+      <property name="text">
+       <string>Elevation</string>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="1">
+     <widget class="QLabel" name="label">
+      <property name="text">
+       <string>Sea Level</string>
+      </property>
+     </widget>
+    </item>
+    <item row="0" column="5" rowspan="4">
      <widget class="QSlider" name="level_slider">
       <property name="minimum">
        <number>-130</number>
@@ -114,47 +151,58 @@
       </property>
      </widget>
     </item>
-    <item row="0" column="2" rowspan="3" colspan="3">
-     <widget class="PlotWidget" name="curve_graph" native="true"/>
-    </item>
-    <item row="2" column="0">
-     <widget class="QgsMapLayerComboBox" name="raster_layer_box">
-      <property name="toolTip">
-       <string>elevation layer</string>
+    <item row="3" column="1">
+     <widget class="QPushButton" name="animate_button">
+      <property name="enabled">
+       <bool>false</bool>
       </property>
-      <property name="allowEmptyLayer">
-       <bool>true</bool>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="1">
-     <widget class="QgsMapLayerComboBox" name="curve_layer_box">
-      <property name="toolTip">
-       <string>curve layer</string>
-      </property>
-      <property name="allowEmptyLayer">
-       <bool>true</bool>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="1">
-     <widget class="QLabel" name="label">
       <property name="text">
-       <string>Sea Level</string>
+       <string>Animate</string>
       </property>
      </widget>
     </item>
-    <item row="1" column="0">
-     <widget class="QLabel" name="label_2">
-      <property name="text">
-       <string>Elevation</string>
+    <item row="1" column="6">
+     <widget class="QSpinBox" name="level">
+      <property name="minimum">
+       <number>-130</number>
+      </property>
+      <property name="maximum">
+       <number>0</number>
       </property>
      </widget>
     </item>
-    <item row="0" column="1">
-     <widget class="QCheckBox" name="interp_check">
-      <property name="text">
-       <string>Interp.</string>
+    <item row="4" column="6">
+     <widget class="QSpinBox" name="age"/>
+    </item>
+    <item row="0" column="6">
+     <widget class="QSpinBox" name="level_max">
+      <property name="minimum">
+       <number>-1000</number>
+      </property>
+      <property name="maximum">
+       <number>1000</number>
+      </property>
+     </widget>
+    </item>
+    <item row="4" column="0">
+     <widget class="QTextBrowser" name="filename_display">
+      <property name="maximumSize">
+       <size>
+        <width>90</width>
+        <height>30</height>
+       </size>
+      </property>
+      <property name="autoFillBackground">
+       <bool>false</bool>
+      </property>
+      <property name="frameShadow">
+       <enum>QFrame::Sunken</enum>
+      </property>
+      <property name="verticalScrollBarPolicy">
+       <enum>Qt::ScrollBarAlwaysOff</enum>
+      </property>
+      <property name="lineWrapMode">
+       <enum>QTextEdit::NoWrap</enum>
       </property>
      </widget>
     </item>

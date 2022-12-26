@@ -21,14 +21,17 @@
  *                                                                         *
  ***************************************************************************/
 """
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QTimer
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QEventLoop
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction, QSpinBox
-from qgis.core import QgsProject, QgsMapLayerProxyModel, QgsExpressionContextUtils
+from qgis.PyQt.QtWidgets import QAction, QSpinBox, QMessageBox, QFileDialog
+from qgis.core import QgsProject, QgsMapLayerProxyModel, QgsExpressionContextUtils, QgsMapRendererSequentialJob, QgsLayoutExporter
 from pyqtgraph import PlotWidget, plot
 import pyqtgraph as pg
 from PyQt5.QtWidgets import QApplication
+from qgis.core import Qgis
 import numpy as np
+import os
+import traceback
 # Initialize Qt resources from file resources.py
 from .resources import *
 
@@ -187,6 +190,7 @@ class SeaLevelTool:
         """Cleanup necessary items here when plugin dockwidget is closed"""
 
         #print "** CLOSING SeaLevelTool"
+        self.dockwidget.level.setValue(0)
 
         # disconnects
         self.dockwidget.closingPlugin.disconnect(self.onClosePlugin)
@@ -255,7 +259,7 @@ class SeaLevelTool:
         self.dockwidget.youngest.setMaximum(v)
         self.dockwidget.age_slider.setMaximum(v)
     def set_youngest(self, v):
-        self.dockwidget.level.setMinimum(v)
+        self.dockwidget.age.setMinimum(v)
         self.dockwidget.oldest.setMinimum(v)
         self.dockwidget.age_slider.setMinimum(v)
     
@@ -264,16 +268,39 @@ class SeaLevelTool:
         total_change = 0
     
     def render(self):
-        self.iface.mapCanvas().saveAsImage(f"/Users/patrickmorrison/Downloads/render/render_{total_change}.png")
+        global age
 
-    def animate(self, range):
+        layout_name = self.dockwidget.composer_box.currentText()
 
-        for step in range:
-            self.change_sea(step)
-            self.iface.mapCanvas().refreshAllLayers()
-            QApplication.processEvents()
-            self.render
-            QApplication.processEvents()
+        def append_age(filename, age):
+            name, ext = os.path.splitext(filename)
+            return f"{name}_{age}ka{ext}"
+
+
+        if layout_name == 'Map Canvas':
+            settings = self.iface.mapCanvas().mapSettings()
+            renderer = QgsMapRendererSequentialJob(settings)
+            event_loop = QEventLoop()
+            renderer.finished.connect(event_loop.quit)
+            renderer.start()
+            event_loop.exec_()
+
+            img = renderer.renderedImage()
+            img.save(append_age(chosen_filename, age))
+        else:
+            project = QgsProject.instance()
+            manager = project.layoutManager()
+            layout = manager.layoutByName(layout_name)
+            exporter = QgsLayoutExporter(layout)
+            exporter.exportToImage(append_age(chosen_filename, age), QgsLayoutExporter.ImageExportSettings())
+
+    def animate(self):
+
+        years = list(range(self.dockwidget.youngest.value(), self.dockwidget.oldest.value()+1, 1))
+
+        for year in years:
+            self.change_age(year)
+            self.render()
             
 
     def change_sea(self, level):
@@ -297,14 +324,24 @@ class SeaLevelTool:
             bath.emitStyleChanged()
 
         except NameError:
-            print('No elevation data')
+            self.iface.messageBar().pushMessage("No elevation data!", "Select DEM", level=Qgis.Warning, duration=5)
+            traceback.print_exc()
+        
+        except AttributeError:
+            self.iface.messageBar().pushMessage("Wrong layer style", "Change to singleband pseudocolour", level=Qgis.Warning, duration=5)
+            traceback.print_exc()
+
 
     def select_raster_fields(self):
         global bath
-        self.change_sea(0)
-        self.dockwidget.level.setValue(0)
+        if self.dockwidget.level.value != 0:
+            self.dockwidget.level.setValue(0)
         bath = self.dockwidget.raster_layer_box.currentLayer()
-        print(bath)
+        self.dockwidget.style_button.setEnabled(True)
+        self.dockwidget.animate_button.setEnabled(True)
+        self.dockwidget.fileButton.setEnabled(True)
+        self.dockwidget.composer_box.setEnabled(True)
+        
 
     def select_curve_fields(self):
         global curve
@@ -337,17 +374,89 @@ class SeaLevelTool:
         graph.addItem(self.h_bar)
         graph.addItem(self.v_bar)
 
+        self.change_age(self.dockwidget.age.value())
+
 
     def update_curve(self):
         global total_change
         total_change = 0
 
-    def change_age(self, age):
+    def change_age(self, new_age):
+        global age
+        age = new_age
         closest_age = min(curve, key=lambda x:abs(x-age))
-        self.dockwidget.level.setValue(curve[closest_age])
+        self.dockwidget.level.setValue(int(curve[closest_age]))
         QgsExpressionContextUtils.setProjectVariable(QgsProject.instance(),'age',age)
         self.v_bar.setPos(age)
+
+    def showDialog(self):
+            msgBox = QMessageBox()
+            msgBox.setIcon(QMessageBox.Information)
+            msgBox.setWindowTitle("Set Raster Style")
+            msgBox.setText("Overwrite raster style with bathy/topo.")
+            msgBox.setInformativeText("""Default is cpt-city/mby from -400 to 250. 
+             \nNatural is cpy-city/wiki-scotland from -60 to 50.
+             \n Discrete is blues from 0 to -30 to -120m, & green above 0.
+             \n Set map title (View->Decorations) according to variables:
+             \n [% @sea_level %]m [% @age %]ka
+             \n Make a print layout and select it for custom renders.
+             """)
+
+            msgBox.setStandardButtons(msgBox.Cancel)
+            msgBox.setDefaultButton(msgBox.Cancel)
+            msgBox.setEscapeButton(msgBox.Cancel)
+
+            default_button = msgBox.addButton('Default', msgBox.ActionRole)
+            default_button.clicked.connect(lambda v: self.changeStyle('default'))
+
+            natural_button = msgBox.addButton('Natural', msgBox.ActionRole)
+            natural_button.clicked.connect(lambda v: self.changeStyle('natural'))
+
+            discrete_button = msgBox.addButton('Discrete', msgBox.ActionRole)
+            discrete_button.clicked.connect(lambda v: self.changeStyle('discrete'))
+
+            msgBox.exec()
+
+    def changeStyle(self, style):
+        global bath
+        path = os.path.dirname(os.path.abspath(__file__))
+        if total_change !=0:
+            self.change_sea(0)
+
+        if style == 'default':
+            default = path + "/styles/sea_level_default_style.qml"
+            print(default)
+            bath.loadNamedStyle(default)
         
+        if style == 'natural':
+            natural = path + "/styles/sea_level_natural_style.qml"
+            bath.loadNamedStyle(natural)
+
+        if style == 'discrete':
+            discrete = path + "/styles/sea_level_discrete_style.qml"
+            bath.loadNamedStyle(discrete)
+
+        bath.triggerRepaint()
+        bath.emitStyleChanged()
+    
+    def select_output_file(self):
+        global chosen_filename
+        chosen_filename, _filter = QFileDialog.getSaveFileName(
+            self.dockwidget, "Save render as","", '*.png')
+        name, ext = os.path.splitext(chosen_filename)
+        name = os.path.basename(name)
+        self.dockwidget.filename_display.setText(f"{name}_{age}ka{ext}")
+
+    def update_layouts(self):
+        selected = self.dockwidget.composer_box.currentText()
+        layouts_list = QgsProject.instance().layoutManager().printLayouts()
+        self.dockwidget.composer_box.clear()
+        self.dockwidget.composer_box.addItems(['Map Canvas'])
+        self.dockwidget.composer_box.addItems([layout.name() for layout in layouts_list])
+        if selected in [layout.name() for layout in layouts_list]:
+            self.dockwidget.composer_box.setCurrentText(selected)
+        else:
+            self.dockwidget.composer_box.setCurrentText('Map Canvas')
 
     #--------------------------------------------------------------------------
 
@@ -392,21 +501,15 @@ class SeaLevelTool:
         project = QgsProject.instance()
         global sea_level
         QgsExpressionContextUtils.setProjectVariable(project,'sea_level',total_change)
-
-        self.dockwidget.render_button.clicked.connect(self.render)
-
-        max = self.dockwidget.level_max.value()
-        min = self.dockwidget.level_min.value()
-        steps = list(range(min, max, 1))
-
-        self.dockwidget.animate_button.clicked.connect(lambda: self.animate(steps))
-
-        #sea_level_data = QgsProject.instance().mapLayersByName('sea_level_curve_basic')[0]
-
+        self.dockwidget.animate_button.clicked.connect(self.animate)
 
         global curve
         curve = {0: 0, 10:0, 20:-120, 30:-100, 40:-80,50:-70,60:-70,70:-80,80:-50,90:-50,100:-30,110:-50,120:-10,130:5}
         self.dockwidget.interp_check.stateChanged.connect(self.select_curve_fields)
+
+        global age
+        age = 0
+        QgsExpressionContextUtils.setProjectVariable(QgsProject.instance(),'age',age)
 
         pen = pg.mkPen(color=(0, 0, 0), width=3)
         graph = self.dockwidget.curve_graph
@@ -421,6 +524,14 @@ class SeaLevelTool:
         graph.addItem(self.h_bar)
         self.v_bar = pg.InfiniteLine(movable=False, angle=90,pos=0,pen=current_pen)
         graph.addItem(self.v_bar)
+
+        layouts_list = QgsProject.instance().layoutManager().printLayouts()
+        self.dockwidget.composer_box.clear()
+        self.dockwidget.composer_box.addItems(['Map Canvas'])
+        self.dockwidget.composer_box.addItems([layout.name() for layout in layouts_list])
+        QgsProject.instance().layoutManager().layoutAdded.connect(self.update_layouts)
+        QgsProject.instance().layoutManager().layoutRemoved.connect(self.update_layouts)
+        QgsProject.instance().layoutManager().layoutRenamed.connect(self.update_layouts)
 
         self.dockwidget.level.valueChanged.connect(lambda v: self.change_sea(v))
         self.dockwidget.level_slider.valueChanged.connect(lambda v: self.change_sea(v))
@@ -439,3 +550,6 @@ class SeaLevelTool:
 
         self.dockwidget.oldest.valueChanged.connect(lambda v: self.set_oldest(v))
         self.dockwidget.youngest.valueChanged.connect(lambda v: self.set_youngest(v))
+        self.dockwidget.style_button.clicked.connect(self.showDialog)
+
+        self.dockwidget.fileButton.clicked.connect(self.select_output_file)
