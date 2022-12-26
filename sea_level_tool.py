@@ -23,11 +23,10 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QEventLoop
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction, QSpinBox, QMessageBox, QFileDialog
+from qgis.PyQt.QtWidgets import QAction, QMessageBox, QFileDialog
 from qgis.core import QgsProject, QgsMapLayerProxyModel, QgsExpressionContextUtils, QgsMapRendererSequentialJob, QgsLayoutExporter
-from pyqtgraph import PlotWidget, plot
 import pyqtgraph as pg
-from PyQt5.QtWidgets import QApplication
+from . import pyqtgraph as pg
 from qgis.core import Qgis
 import numpy as np
 import os

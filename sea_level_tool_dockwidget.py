@@ -26,8 +26,7 @@ import os
 
 from qgis.PyQt import QtGui, QtWidgets, uic
 from qgis.PyQt.QtCore import pyqtSignal
-from pyqtgraph import PlotWidget
-import pyqtgraph as pg
+from . import pyqtgraph as pg
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'sea_level_tool_dockwidget_base.ui'))
