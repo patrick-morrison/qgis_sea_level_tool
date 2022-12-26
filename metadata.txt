@@ -27,7 +27,7 @@ tags=python, sea level, archaeology, geomorphology
 
 homepage=https://github.com/patrick-morrison/qgis_sea_level_tool
 category=Plugins
-icon=wave_emoji.png
+icon=icon.png
 # experimental flag
 experimental=False
 
