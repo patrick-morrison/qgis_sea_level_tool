@@ -52,7 +52,7 @@ class ActionParameterItem(ParameterItem):
         self.layout = QtWidgets.QHBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layoutWidget.setLayout(self.layout)
-        self.button = ParameterControlledButton(param, self.layoutWidget)
+        self.button = ParameterControlledButton(param)
         #self.layout.addSpacing(100)
         self.layout.addWidget(self.button)
         self.layout.addStretch()

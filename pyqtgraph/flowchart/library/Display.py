@@ -4,7 +4,7 @@ from ... import ComboBox, PlotDataItem
 from ...graphicsItems.ScatterPlotItem import ScatterPlotItem
 from ...Qt import QtCore, QtGui, QtWidgets
 from ..Node import Node
-from .common import CtrlNode
+from .common import *
 
 
 class PlotWidgetNode(Node):

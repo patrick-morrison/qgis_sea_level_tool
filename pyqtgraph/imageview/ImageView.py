@@ -21,11 +21,11 @@ from .. import debug as debug
 from .. import functions as fn
 from .. import getConfigOption
 from ..graphicsItems.GradientEditorItem import addGradientListToDocstring
-from ..graphicsItems.ImageItem import ImageItem
-from ..graphicsItems.InfiniteLine import InfiniteLine
-from ..graphicsItems.LinearRegionItem import LinearRegionItem
-from ..graphicsItems.ROI import ROI
-from ..graphicsItems.ViewBox import ViewBox
+from ..graphicsItems.ImageItem import *
+from ..graphicsItems.InfiniteLine import *
+from ..graphicsItems.LinearRegionItem import *
+from ..graphicsItems.ROI import *
+from ..graphicsItems.ViewBox import *
 from ..graphicsItems.VTickGroup import VTickGroup
 from ..Qt import QtCore, QtGui, QtWidgets
 from ..SignalProxy import SignalProxy
@@ -219,11 +219,7 @@ class ImageView(QtWidgets.QWidget):
         self.ui.normTimeRangeCheck.clicked.connect(self.updateNorm)
         self.playTimer.timeout.connect(self.timeout)
         
-        self.normProxy = SignalProxy(
-            self.normRgn.sigRegionChanged,
-            slot=self.updateNorm,
-            threadSafe=False,
-        )
+        self.normProxy = SignalProxy(self.normRgn.sigRegionChanged, slot=self.updateNorm)
         self.normRoi.sigRegionChangeFinished.connect(self.updateNorm)
         
         self.ui.roiPlot.registerPlot(self.name + '_ROI')

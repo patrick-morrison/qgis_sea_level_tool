@@ -4,7 +4,7 @@ from .. import functions as fn
 from .. import getConfigOption
 from ..Point import Point
 from ..Qt import QtCore, QtGui
-from .UIGraphicsItem import UIGraphicsItem
+from .UIGraphicsItem import *
 
 __all__ = ['GridItem']
 class GridItem(UIGraphicsItem):

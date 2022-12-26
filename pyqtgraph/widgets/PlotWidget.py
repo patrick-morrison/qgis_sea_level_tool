@@ -4,9 +4,9 @@ Copyright 2010  Luke Campagnola
 Distributed under MIT/X11 license. See license.txt for more information.
 """
 
-from ..graphicsItems.PlotItem import PlotItem
+from ..graphicsItems.PlotItem import *
 from ..Qt import QtCore, QtWidgets
-from .GraphicsView import GraphicsView
+from .GraphicsView import *
 
 __all__ = ['PlotWidget']
 class PlotWidget(GraphicsView):

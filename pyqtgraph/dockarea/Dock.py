@@ -1,18 +1,22 @@
 import warnings
 
-from ..Qt import QtCore, QtGui, QtWidgets
+from ..Qt import QT_LIB, QtCore, QtGui, QtWidgets
 from ..widgets.VerticalLabel import VerticalLabel
 from .DockDrop import DockDrop
 
 
-class Dock(QtWidgets.QWidget):
+class Dock(QtWidgets.QWidget, DockDrop):
 
     sigStretchChanged = QtCore.Signal()
     sigClosed = QtCore.Signal(object)
 
     def __init__(self, name, area=None, size=(10, 10), widget=None, hideTitle=False, autoOrientation=True, label=None, **kargs):
-        QtWidgets.QWidget.__init__(self)
-        self.dockdrop = DockDrop(self)
+        allowedAreas = None
+        if QT_LIB.startswith('PyQt'):
+            QtWidgets.QWidget.__init__(self, allowedAreas=allowedAreas)
+        else:
+            QtWidgets.QWidget.__init__(self)
+            DockDrop.__init__(self, allowedAreas=allowedAreas)
         self._container = None
         self._name = name
         self.area = area
@@ -42,7 +46,7 @@ class Dock(QtWidgets.QWidget):
         self.widgets = []
         self.currentRow = 0
         #self.titlePos = 'top'
-        self.dockdrop.raiseOverlay()
+        self.raiseOverlay()
         self.hStyle = """
         Dock > QWidget {
             border: 1px solid #000;
@@ -109,7 +113,8 @@ class Dock(QtWidgets.QWidget):
         """
         self.label.hide()
         self.labelHidden = True
-        self.dockdrop.removeAllowedArea('center')
+        if 'center' in self.allowedAreas:
+            self.allowedAreas.remove('center')
         self.updateStyle()
 
     def showTitleBar(self):
@@ -118,7 +123,7 @@ class Dock(QtWidgets.QWidget):
         """
         self.label.show()
         self.labelHidden = False
-        self.dockdrop.addAllowedArea('center')
+        self.allowedAreas.add('center')
         self.updateStyle()
 
     def title(self):
@@ -175,7 +180,7 @@ class Dock(QtWidgets.QWidget):
 
     def resizeEvent(self, ev):
         self.setOrientation()
-        self.dockdrop.resizeOverlay(self.size())
+        self.resizeOverlay(self.size())
 
     def name(self):
         return self._name
@@ -190,7 +195,7 @@ class Dock(QtWidgets.QWidget):
         self.currentRow = max(row+1, self.currentRow)
         self.widgets.append(widget)
         self.layout.addWidget(widget, row, col, rowspan, colspan)
-        self.dockdrop.raiseOverlay()
+        self.raiseOverlay()
         
     def startDrag(self):
         self.drag = QtGui.QDrag(self)
@@ -244,17 +249,19 @@ class Dock(QtWidgets.QWidget):
     def __repr__(self):
         return "<Dock %s %s>" % (self.name(), self.stretch())
 
+    ## PySide bug: We need to explicitly redefine these methods
+    ## or else drag/drop events will not be delivered.
     def dragEnterEvent(self, *args):
-        self.dockdrop.dragEnterEvent(*args)
+        DockDrop.dragEnterEvent(self, *args)
 
     def dragMoveEvent(self, *args):
-        self.dockdrop.dragMoveEvent(*args)
+        DockDrop.dragMoveEvent(self, *args)
 
     def dragLeaveEvent(self, *args):
-        self.dockdrop.dragLeaveEvent(*args)
+        DockDrop.dragLeaveEvent(self, *args)
 
     def dropEvent(self, *args):
-        self.dockdrop.dropEvent(*args)
+        DockDrop.dropEvent(self, *args)
 
 
 class DockLabel(VerticalLabel):

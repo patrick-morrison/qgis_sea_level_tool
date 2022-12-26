@@ -25,12 +25,12 @@ from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QEven
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QMessageBox, QFileDialog
 from qgis.core import QgsProject, QgsMapLayerProxyModel, QgsExpressionContextUtils, QgsMapRendererSequentialJob, QgsLayoutExporter
-import pyqtgraph as pg
-from . import pyqtgraph as pg
 from qgis.core import Qgis
 import numpy as np
 import os
-import traceback
+
+from . import pyqtgraph as pg
+
 # Initialize Qt resources from file resources.py
 from .resources import *
 
@@ -324,11 +324,9 @@ class SeaLevelTool:
 
         except NameError:
             self.iface.messageBar().pushMessage("No elevation data!", "Select DEM", level=Qgis.Warning, duration=5)
-            traceback.print_exc()
         
         except AttributeError:
             self.iface.messageBar().pushMessage("Wrong layer style", "Change to singleband pseudocolour", level=Qgis.Warning, duration=5)
-            traceback.print_exc()
 
 
     def select_raster_fields(self):

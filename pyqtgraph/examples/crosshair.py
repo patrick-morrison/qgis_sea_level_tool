@@ -67,7 +67,7 @@ p1.addItem(hLine, ignoreBounds=True)
 vb = p1.vb
 
 def mouseMoved(evt):
-    pos = evt
+    pos = evt[0]  ## using signal proxy turns original arguments into a tuple
     if p1.sceneBoundingRect().contains(pos):
         mousePoint = vb.mapSceneToView(pos)
         index = int(mousePoint.x())
@@ -78,7 +78,8 @@ def mouseMoved(evt):
 
 
 
-p1.scene().sigMouseMoved.connect(mouseMoved)
+proxy = pg.SignalProxy(p1.scene().sigMouseMoved, rateLimit=60, slot=mouseMoved)
+#p1.scene().sigMouseMoved.connect(mouseMoved)
 
 
 if __name__ == '__main__':

@@ -33,12 +33,12 @@ class ButtonItem(GraphicsObject):
         if self.enabled:
             self.clicked.emit(self)
         
-    def hoverEvent(self, ev):
+    def mouseHoverEvent(self, ev):
         if not self.enabled:
             return
         if ev.isEnter():
             self.setOpacity(1.0)
-        elif ev.isExit():
+        else:
             self.setOpacity(0.7)
 
     def disable(self):

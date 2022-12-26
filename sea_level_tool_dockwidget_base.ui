@@ -218,7 +218,7 @@
   <customwidget>
    <class>PlotWidget</class>
    <extends>QWidget</extends>
-   <header>pyqtgraph</header>
+   <header>qgis_sea_level_tool</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

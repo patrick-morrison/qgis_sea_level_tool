@@ -300,12 +300,10 @@ class InfiniteLine(GraphicsObject):
         vr = self.viewRect()  # bounds of containing ViewBox mapped to local coords.
         if vr is None:
             return QtCore.QRectF()
-
-        # compute the pixel size orthogonal to the line
-        # this is more complicated than it seems, maybe it can be simplified
-        _, ortho = self.pixelVectors(direction=Point(1, 0))
-        px = 0 if ortho is None else ortho.y()
-
+        
+        px = self.pixelLength(direction=Point(1,0), ortho=True)  ## get pixel length orthogonal to the line
+        if px is None:
+            px = 0
         pw = max(self.pen.width() / 2, self.hoverPen.width() / 2)
         w = (self._maxMarkerSize + pw + 1) * px
         br = QtCore.QRectF(vr)
