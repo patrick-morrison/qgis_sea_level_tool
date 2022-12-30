@@ -5,7 +5,7 @@
 [general]
 name=SeaLevelTool
 qgisMinimumVersion=3.0
-description=This allows you to adjust sea level according to sea level curves.
+description=Adjust styling on raster layer by a sea level curve.
 version=1.0
 author=Patrick Morrison
 email=patrick.morrison@research.uwa.edu.au

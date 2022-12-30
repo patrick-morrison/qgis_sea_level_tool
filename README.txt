@@ -28,5 +28,5 @@ With sea level curve and bathymetry loaded:
 - animate from canvas to check it is working
 - change dropdown to a custom layout for dynamic titles, scale bars etc.
 
-Requires pyqtgraph: https://landscapearchaeology.org/2018/installing-python-packages-in-qgis-3-for-windows/
+Embeds pyqtgraph https://www.pyqtgraph.org.
 
