@@ -28,5 +28,11 @@ With sea level curve and bathymetry loaded:
 - animate from canvas to check it is working
 - change dropdown to a custom layout for dynamic titles, scale bars etc.
 
+An example ffmpeg command to render this into a video is:
+```
+cat $(find . -maxdepth 1 -name "*.png" | sort -V -r) |
+  ffmpeg -framerate 25 -i - -c:v libx264 -profile:v high -crf 20 -pix_fmt yuv420p sea_level_video.mp4
+```
+
 Embeds pyqtgraph https://www.pyqtgraph.org.
 
