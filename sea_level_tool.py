@@ -24,8 +24,7 @@
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QEventLoop
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QMessageBox, QFileDialog
-from qgis.core import QgsProject, QgsMapLayerProxyModel, QgsExpressionContextUtils, QgsMapRendererSequentialJob, QgsLayoutExporter
-from qgis.core import Qgis
+from qgis.core import Qgis, QgsProject, QgsMapLayerProxyModel, QgsExpressionContextUtils, QgsMapRendererSequentialJob, QgsLayoutExporter, QgsFeatureRequest,QgsExpression
 import numpy as np
 import os
 
@@ -216,9 +215,9 @@ class SeaLevelTool:
         # remove the toolbar
         del self.toolbar
     
-    def adjust_levels(self, type, moved_value):
-        level_box = self.dockwidget.level.value()
-        level_slider = self.dockwidget.level_slider.value()
+    def adjust_levels(self, type, changed):
+        level_box = self.dockwidget.level.value()*10
+        level_slider = self.dockwidget.level_slider.value()/10
 
         if type == 'slider':
             self.dockwidget.level_slider.sliderMoved.disconnect()
@@ -230,9 +229,9 @@ class SeaLevelTool:
             self.dockwidget.level.setValue(level_slider)
             self.dockwidget.level.valueChanged.connect(lambda v: self.adjust_levels("slider", v))
 
-    def adjust_ages(self, type, moved_value):
-        age_box = self.dockwidget.age.value()
-        age_slider = self.dockwidget.age_slider.value()
+    def adjust_ages(self, type, changed):
+        age_box = self.dockwidget.age.value()*10
+        age_slider = self.dockwidget.age_slider.value()/10
 
         if type == 'slider':
             self.dockwidget.age_slider.sliderMoved.disconnect()
@@ -247,20 +246,20 @@ class SeaLevelTool:
     def set_level_max(self, v):
         self.dockwidget.level.setMaximum(v)
         self.dockwidget.level_min.setMaximum(v)
-        self.dockwidget.level_slider.setMaximum(v)
+        self.dockwidget.level_slider.setMaximum(v*10)
     def set_level_min(self, v):
         self.dockwidget.level.setMinimum(v)
         self.dockwidget.level_max.setMinimum(v)
-        self.dockwidget.level_slider.setMinimum(v)
+        self.dockwidget.level_slider.setMinimum(v*10)
 
     def set_oldest(self, v):
         self.dockwidget.age.setMaximum(v)
         self.dockwidget.youngest.setMaximum(v)
-        self.dockwidget.age_slider.setMaximum(v)
+        self.dockwidget.age_slider.setMaximum(v*10)
     def set_youngest(self, v):
         self.dockwidget.age.setMinimum(v)
         self.dockwidget.oldest.setMinimum(v)
-        self.dockwidget.age_slider.setMinimum(v)
+        self.dockwidget.age_slider.setMinimum(v*10)
     
     def msl(self):
         global total_change
@@ -295,7 +294,11 @@ class SeaLevelTool:
 
     def animate(self):
 
-        years = list(range(self.dockwidget.youngest.value(), self.dockwidget.oldest.value()+1, 1))
+        if self.dockwidget.dec_check.isChecked():
+            times_ten = list(range(self.dockwidget.youngest.value()*10, self.dockwidget.oldest.value()*10+1, 1))
+            years = [round(x * 0.1, 1) for x in times_ten]
+        else:
+            years = list(range(self.dockwidget.youngest.value(), self.dockwidget.oldest.value()+1, 1))
 
         for year in years:
             self.change_age(year)
@@ -343,10 +346,15 @@ class SeaLevelTool:
     def select_curve_fields(self):
         global curve
 
+        request = QgsFeatureRequest()
         data = self.dockwidget.curve_layer_box.currentLayer()
+        clause = QgsFeatureRequest.OrderByClause(QgsExpression('to_real(age)'), ascending=True)
+        orderby = QgsFeatureRequest.OrderBy([clause])
+        request.setOrderBy(orderby)
+
         if data:
             curve = {}
-            for feature in data.getFeatures():
+            for feature in data.getFeatures(request):
                 age = float(feature["age"])
                 level = float(feature["sea_level"])
                 curve[age] = level
@@ -358,9 +366,16 @@ class SeaLevelTool:
         self.dockwidget.oldest.setValue(max(list(curve.keys())))
         self.dockwidget.youngest.setValue(min(list(curve.keys())))
 
+        global curve_interp
+
         if self.dockwidget.interp_check.isChecked():
-            global curve_interp
-            x = list(range(self.dockwidget.youngest.value(), self.dockwidget.oldest.value()+1, 1))
+            if self.dockwidget.dec_check.isChecked():
+                times_ten = list(range(self.dockwidget.youngest.value()*10, self.dockwidget.oldest.value()*10+1, 1))
+                x = [x * 0.1 for x in times_ten]
+            else:
+                x = list(range(self.dockwidget.youngest.value(), self.dockwidget.oldest.value()+1, 1))
+            
+            
             y = np.interp(x, list(curve.keys()), list(curve.values()))
             curve = dict(zip(x, y))
         
@@ -378,11 +393,36 @@ class SeaLevelTool:
         global total_change
         total_change = 0
 
+    def change_resolution(self):
+        self.select_curve_fields()
+        if self.dockwidget.level.value != 0:
+            self.dockwidget.level.setValue(0)
+        if self.dockwidget.age.value != 0:
+            self.dockwidget.age.setValue(0)
+
+        if self.dockwidget.dec_check.isChecked():
+            self.dockwidget.level.setSingleStep(.1)
+            self.dockwidget.level.setDecimals(1)
+            self.dockwidget.level_slider.setSingleStep(1)
+
+            self.dockwidget.age.setSingleStep(.1)
+            self.dockwidget.age.setDecimals(1)
+            self.dockwidget.age_slider.setSingleStep(1)
+        else:
+            self.dockwidget.age.setSingleStep(1)
+            self.dockwidget.age.setDecimals(0)
+            self.dockwidget.age_slider.setSingleStep(10)
+
+            self.dockwidget.level.setSingleStep(1)
+            self.dockwidget.level.setDecimals(0)
+            self.dockwidget.level_slider.setSingleStep(10)
+
+
     def change_age(self, new_age):
         global age
         age = new_age
         closest_age = min(curve, key=lambda x:abs(x-age))
-        self.dockwidget.level.setValue(int(curve[closest_age]))
+        self.dockwidget.level.setValue(curve[closest_age])
         QgsExpressionContextUtils.setProjectVariable(QgsProject.instance(),'age',age)
         self.v_bar.setPos(age)
 
@@ -503,6 +543,7 @@ class SeaLevelTool:
         global curve
         curve = {0: 0, 10:0, 20:-120, 30:-100, 40:-80,50:-70,60:-70,70:-80,80:-50,90:-50,100:-30,110:-50,120:-10,130:5}
         self.dockwidget.interp_check.stateChanged.connect(self.select_curve_fields)
+        self.dockwidget.dec_check.stateChanged.connect(self.change_resolution)
 
         global age
         age = 0
@@ -531,7 +572,7 @@ class SeaLevelTool:
         QgsProject.instance().layoutManager().layoutRenamed.connect(self.update_layouts)
 
         self.dockwidget.level.valueChanged.connect(lambda v: self.change_sea(v))
-        self.dockwidget.level_slider.valueChanged.connect(lambda v: self.change_sea(v))
+        self.dockwidget.level_slider.valueChanged.connect(lambda v: self.change_sea(v/10))
 
         self.dockwidget.level.valueChanged.connect(lambda v: self.adjust_levels('slider', v))
         self.dockwidget.level_slider.sliderMoved.connect(lambda v: self.adjust_levels("box", v))
@@ -543,7 +584,7 @@ class SeaLevelTool:
         self.dockwidget.level_max.valueChanged.connect(lambda v: self.set_level_max(v))
 
         self.dockwidget.age.valueChanged.connect(lambda v: self.change_age(v))
-        self.dockwidget.age_slider.valueChanged.connect(lambda v: self.change_age(v))
+        self.dockwidget.age_slider.valueChanged.connect(lambda v: self.change_age(v/10))
 
         self.dockwidget.oldest.valueChanged.connect(lambda v: self.set_oldest(v))
         self.dockwidget.youngest.valueChanged.connect(lambda v: self.set_youngest(v))
