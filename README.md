@@ -85,7 +85,7 @@ cat $(find . -maxdepth 1 -name "*.png" | sort -V -r) |
 
 Tasmania since the last glacial maximum (22ka). Note the land bridge that was present in the ice age, and how islands were formed as the sea level rose.
 
-![Uploading tasmania2.gif…]()
+![tasmania2](https://user-images.githubusercontent.com/2309844/229721573-6b63f31d-02ee-43b3-a18e-a2bb6585b963.gif)
 
 Embeds pyqtgraph https://www.pyqtgraph.org.
 
