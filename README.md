@@ -40,7 +40,7 @@ It must have the headings "age" and "sea_level", in ka and metres.
 The default curve is:
 {0: 0, 10:0, 20:-120, 30:-100, 40:-80,50:-70,60:-70,70:-80,80:-50,90:-50,100:-30,110:-50,120:-10,130:5}
 
-Red Sea level e.g.
+or as a table:
 
 | age   | sea_level |
 |-------|-----------|
