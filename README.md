@@ -18,7 +18,7 @@ A great source of bathymetry data is GEBCO. They have a tool to download data: h
 - or, optionally there there is a style button with three presets.
 - Change vertical slider to move sea level.
 
-![load_dem](https://user-images.githubusercontent.com/2309844/229714873-e9b5f389-4415-4a2d-93ed-32019ac9aa16.gif)
+![dem2](https://user-images.githubusercontent.com/2309844/229721275-7a5a846a-eb3b-41a4-b81b-3703103703b6.gif)
 
 ## Custom sea level curve
 
@@ -35,7 +35,7 @@ It must have the headings "age" and "sea_level", in ka and metres.
 - In View-Decorations-Title Label you can use the sea_level and age variable to construct a dynamic map label,
  e.g.: Age: [% @age %]ka Sea level:[% @sea_level %]m 
  
- ![custom_curve](https://user-images.githubusercontent.com/2309844/229716082-f086d113-7c42-40ef-bfb3-a680fabff732.gif)
+![curve2](https://user-images.githubusercontent.com/2309844/229721327-4929743b-9abe-4f06-93f3-55e83b5ef8b8.gif)
 
 The default curve is:
 {0: 0, 10:0, 20:-120, 30:-100, 40:-80,50:-70,60:-70,70:-80,80:-50,90:-50,100:-30,110:-50,120:-10,130:5}
@@ -67,14 +67,15 @@ With sea level curve and bathymetry loaded:
 - choose max and min ages
 - use 'save as...' button to choose file
 - animate from canvas to check it is working
-![export](https://user-images.githubusercontent.com/2309844/229715081-2fabaf62-a6ff-4f2c-93b1-6000430c0a51.gif)
+
+![animate2](https://user-images.githubusercontent.com/2309844/229721371-5c33e0c0-00d8-4210-ad71-b7d86b694b3e.gif)
 
 - change dropdown to a custom print layout for dynamic titles, scale bars etc.
   - this print layout can also use dynamic titles: Age: [% @age %]ka Sea level:[% @sea_level %]m 
   - note this will cause QGIS to freeze until it is done, check the folder to see the images being rendered.
   - century resolution is recommended for these animations to make a smooth video.
   
-![print_composer](https://user-images.githubusercontent.com/2309844/229715136-e6d49b37-484d-4fb5-9fc0-a4f771c03f0f.gif)
+![print2](https://user-images.githubusercontent.com/2309844/229721413-0dc216ea-cae3-447e-813a-c70b42ae163f.gif)
 
 An example ffmpeg command to render this into a video is:
 ```
@@ -83,7 +84,8 @@ cat $(find . -maxdepth 1 -name "*.png" | sort -V -r) |
 ```
 
 Tasmania since the last glacial maximum (22ka). Note the land bridge that was present in the ice age, and how islands were formed as the sea level rose.
-![tasmania](https://user-images.githubusercontent.com/2309844/229715622-94449889-e5fe-44ee-8949-e04cec3350c1.gif)
+
+![Uploading tasmania2.gif…]()
 
 Embeds pyqtgraph https://www.pyqtgraph.org.
 
