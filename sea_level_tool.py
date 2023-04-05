@@ -449,6 +449,9 @@ class SeaLevelTool:
             natural_button = msgBox.addButton('Natural', msgBox.ActionRole)
             natural_button.clicked.connect(lambda v: self.changeStyle('natural'))
 
+            discrete_button = msgBox.addButton('Earth', msgBox.ActionRole)
+            discrete_button.clicked.connect(lambda v: self.changeStyle('earth'))
+
             discrete_button = msgBox.addButton('Discrete', msgBox.ActionRole)
             discrete_button.clicked.connect(lambda v: self.changeStyle('discrete'))
 
@@ -462,7 +465,6 @@ class SeaLevelTool:
 
         if style == 'default':
             default = path + "/styles/sea_level_default_style.qml"
-            print(default)
             bath.loadNamedStyle(default)
         
         if style == 'natural':
@@ -472,6 +474,10 @@ class SeaLevelTool:
         if style == 'discrete':
             discrete = path + "/styles/sea_level_discrete_style.qml"
             bath.loadNamedStyle(discrete)
+
+        if style == 'earth':
+            earth = path + "/styles/sea_level_earth2_style.qml"
+            bath.loadNamedStyle(earth)
 
         bath.triggerRepaint()
         bath.emitStyleChanged()
