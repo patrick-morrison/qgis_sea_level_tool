@@ -8,7 +8,8 @@ This plugin can be installed using the latest release on Github. In the QGIS plu
 
 ## Data
 You will need a sea level curve and a digital elevation model (DEM). 
-There is an example curve included in this repository - a eustatic curve from the Red Sea. It was adapted from the supplementary materials of Grant et al. 2012: https://doi.org/10.1038/nature11593
+There is an example curve included in this repository - a eustatic curve from the Red Sea. It was adapted from the supplementary materials of Grant et al. 2012: https://doi.org/10.1038/nature11593.
+
 A great source of bathymetry data is GEBCO. They have a tool to download data: https://www.gebco.net/data_and_products/gridded_bathymetry_data/
 
 ## Getting started
@@ -86,6 +87,11 @@ cat $(find . -maxdepth 1 -name "*.png" | sort -V -r) |
 Tasmania since the last glacial maximum (22ka). Note the land bridge that was present in the ice age, and how islands were formed as the sea level rose.
 
 ![tasmania2](https://user-images.githubusercontent.com/2309844/229721573-6b63f31d-02ee-43b3-a18e-a2bb6585b963.gif)
+
+## Completely flexible
+Anything elevation layer you can draw in QGIS, you can explore and animate. What if we wanted to take the new Geoscience Australia DEM of the Bass Strait, style it naturally, add a reliefshade with Eduard, and and combine it with the Lambeck 2014 sea level curve? That's easy! This took 10 minutes:
+
+![tasmania_highres2](https://user-images.githubusercontent.com/2309844/229951927-e374b4af-06e6-41e9-b633-5e988b1c1c16.gif)
 
 Embeds pyqtgraph https://www.pyqtgraph.org.
 
