@@ -89,7 +89,7 @@ Tasmania since the last glacial maximum (22ka). Note the land bridge that was pr
 ![tasmania2](https://user-images.githubusercontent.com/2309844/229721573-6b63f31d-02ee-43b3-a18e-a2bb6585b963.gif)
 
 ## Completely flexible
-Anything elevation layer you can draw in QGIS, you can explore and animate. What if we wanted to take the new Geoscience Australia DEM of the Bass Strait, style it naturally, add a reliefshade with Eduard, and and combine it with the Lambeck 2014 sea level curve? That's easy! This took 10 minutes:
+Any elevation layer you can draw in QGIS, you can explore and animate. What if we wanted to take the new Geoscience Australia DEM of the Bass Strait, style it naturally, add a reliefshade with Eduard, and and combine it with the Lambeck 2014 sea level curve? That's easy! This took 10 minutes:
 
 ![tasmania_highres2](https://user-images.githubusercontent.com/2309844/229951927-e374b4af-06e6-41e9-b633-5e988b1c1c16.gif)
 
