@@ -286,9 +286,21 @@ class SeaLevelTool:
             img = renderer.renderedImage()
             img.save(append_age(chosen_filename, age))
         else:
+            settings = self.iface.mapCanvas().mapSettings()
+            renderer = QgsMapRendererSequentialJob(settings)
+
             project = QgsProject.instance()
             manager = project.layoutManager()
             layout = manager.layoutByName(layout_name)
+
+            event_loop = QEventLoop()
+            renderer.finished.connect(event_loop.quit)
+            renderer.start()
+            event_loop.exec_()
+
+            #self.iface.openLayoutDesigner(layout)
+            layout.refresh()
+
             exporter = QgsLayoutExporter(layout)
             exporter.exportToImage(append_age(chosen_filename, age), QgsLayoutExporter.ImageExportSettings())
 
