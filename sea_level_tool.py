@@ -24,7 +24,8 @@
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QEventLoop
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QMessageBox, QFileDialog
-from qgis.core import Qgis, QgsProject, QgsMapLayerProxyModel, QgsExpressionContextUtils, QgsMapRendererSequentialJob, QgsLayoutExporter, QgsFeatureRequest,QgsExpression
+from qgis.core import Qgis, QgsProject,QgsApplication, QgsMapLayerProxyModel, QgsExpressionContextUtils, QgsMapRendererSequentialJob, QgsLayoutExporter, QgsFeatureRequest,QgsExpression
+from .processing_provider.provider import Provider
 import numpy as np
 import os
 
@@ -52,6 +53,7 @@ class SeaLevelTool:
         """
         # Save reference to the QGIS interface
         self.iface = iface
+        self.provider = None
 
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
@@ -171,6 +173,11 @@ class SeaLevelTool:
         return action
 
 
+    def initProcessing(self):
+        self.provider = Provider()
+        QgsApplication.processingRegistry().addProvider(self.provider)
+
+
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
 
@@ -180,6 +187,8 @@ class SeaLevelTool:
             text=self.tr(u'Sea Level Curve'),
             callback=self.run,
             parent=self.iface.mainWindow())
+        
+        self.initProcessing()
         
 
     #--------------------------------------------------------------------------
@@ -214,6 +223,7 @@ class SeaLevelTool:
             self.iface.removeToolBarIcon(action)
         # remove the toolbar
         del self.toolbar
+        QgsApplication.processingRegistry().removeProvider(self.provider)
     
     def adjust_levels(self, type, changed):
         level_box = self.dockwidget.level.value()*10
