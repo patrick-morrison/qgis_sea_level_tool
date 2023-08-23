@@ -176,6 +176,24 @@ class ShorelineDuration(QgsProcessingAlgorithm):
             context
         )
 
+        bin_width = self.parameterAsInt(
+            parameters,
+            self.INPUT_BINWIDTH,
+            context
+        )
+
+        oldest = self.parameterAsInt(
+            parameters,
+            self.INPUT_OLDEST,
+            context
+        )
+
+        youngest = self.parameterAsInt(
+            parameters,
+            self.INPUT_YOUNGEST,
+            context
+        )
+
         curve = {}
         request = QgsFeatureRequest()
         clause = QgsFeatureRequest.OrderByClause(QgsExpression('to_real(age)'), ascending=True)
@@ -187,16 +205,15 @@ class ShorelineDuration(QgsProcessingAlgorithm):
             level = float(feature["sea_level"])
             curve[age] = level
             
-        oldest = 65
-        youngest = 0
-        bin_width = 5
-
-        max_sea_level =  math.ceil(max(curve.values()))
-        min_sea_level = math.floor(min(curve.values()))
 
         x = list(range(youngest, oldest+1, 1))
         y = np.interp(x, list(curve.keys()), list(curve.values()))
         curve = dict(zip(x, y))
+
+        max_sea_level =  math.ceil(max(curve.values()))
+        min_sea_level = math.floor(min(curve.values()))
+
+        print(curve)
 
         s = range(min_sea_level,max_sea_level+1, bin_width)
             

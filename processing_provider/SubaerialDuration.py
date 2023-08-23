@@ -167,6 +167,20 @@ class SubaerialDuration(QgsProcessingAlgorithm):
             context
         )
 
+        oldest = self.parameterAsInt(
+            parameters,
+            self.INPUT_OLDEST,
+            context
+        )
+
+        youngest = self.parameterAsInt(
+            parameters,
+            self.INPUT_YOUNGEST,
+            context
+        )
+
+        bin_width = 1 
+
         curve = {}
         request = QgsFeatureRequest()
         clause = QgsFeatureRequest.OrderByClause(QgsExpression('to_real(age)'), ascending=True)
@@ -178,16 +192,13 @@ class SubaerialDuration(QgsProcessingAlgorithm):
             level = float(feature["sea_level"])
             curve[age] = level
             
-        oldest = 65
-        youngest = 0
-        bin_width = 1
-
-        max_sea_level =  math.ceil(max(curve.values()))
-        min_sea_level = math.floor(min(curve.values()))
 
         x = list(range(youngest, oldest+1, 1))
         y = np.interp(x, list(curve.keys()), list(curve.values()))
         curve = dict(zip(x, y))
+
+        max_sea_level =  math.ceil(max(curve.values()))
+        min_sea_level = math.floor(min(curve.values()))
 
         s = range(min_sea_level,max_sea_level+1, bin_width)
             
