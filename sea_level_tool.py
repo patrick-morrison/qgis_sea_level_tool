@@ -453,10 +453,7 @@ class SeaLevelTool:
             msgBox.setIcon(QMessageBox.Information)
             msgBox.setWindowTitle("Set Raster Style")
             msgBox.setText("Overwrite raster style with bathy/topo.")
-            msgBox.setInformativeText("""Default is cpt-city/mby from -400 to 250. 
-             \nNatural is cpy-city/wiki-scotland from -60 to 50.
-             \n Discrete is blues from 0 to -30 to -120m, & green above 0.
-             \n Set map title (View->Decorations) according to variables:
+            msgBox.setInformativeText("""Set map title (View->Decorations) according to variables:
              \n [% @sea_level %]m [% @age %]ka
              \n Make a print layout and select it for custom renders.
              """)
@@ -465,14 +462,11 @@ class SeaLevelTool:
             msgBox.setDefaultButton(msgBox.Cancel)
             msgBox.setEscapeButton(msgBox.Cancel)
 
-            default_button = msgBox.addButton('Default', msgBox.ActionRole)
-            default_button.clicked.connect(lambda v: self.changeStyle('default'))
-
-            natural_button = msgBox.addButton('Natural', msgBox.ActionRole)
-            natural_button.clicked.connect(lambda v: self.changeStyle('natural'))
-
             discrete_button = msgBox.addButton('Earth', msgBox.ActionRole)
             discrete_button.clicked.connect(lambda v: self.changeStyle('earth'))
+
+            natural_button = msgBox.addButton('Wiki', msgBox.ActionRole)
+            natural_button.clicked.connect(lambda v: self.changeStyle('natural'))
 
             discrete_button = msgBox.addButton('Discrete', msgBox.ActionRole)
             discrete_button.clicked.connect(lambda v: self.changeStyle('discrete'))
@@ -485,10 +479,6 @@ class SeaLevelTool:
         if total_change !=0:
             self.change_sea(0)
 
-        if style == 'default':
-            default = path + "/styles/sea_level_default_style.qml"
-            bath.loadNamedStyle(default)
-        
         if style == 'natural':
             natural = path + "/styles/sea_level_natural_style.qml"
             bath.loadNamedStyle(natural)
