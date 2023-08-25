@@ -1,4 +1,5 @@
 from qgis.core import QgsProcessingProvider
+from qgis.PyQt.QtGui import QIcon
 
 from .ShorelineDuration import ShorelineDuration
 from .SubaerialDuration import SubaerialDuration
@@ -32,4 +33,5 @@ class Provider(QgsProcessingProvider):
         """Should return a QIcon which is used for your provider inside
         the Processing toolbox.
         """
-        return QgsProcessingProvider.icon(self)
+        icon_path = ':/plugins/sea_level_tool/icon.png'
+        return(QIcon(icon_path))
