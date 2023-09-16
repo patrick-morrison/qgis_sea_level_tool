@@ -3,6 +3,8 @@ from qgis.PyQt.QtGui import QIcon
 
 from .ShorelineDuration import ShorelineDuration
 from .SubaerialDuration import SubaerialDuration
+from .LastExposure import LastExposure
+
 
 
 class Provider(QgsProcessingProvider):
@@ -10,8 +12,7 @@ class Provider(QgsProcessingProvider):
     def loadAlgorithms(self, *args, **kwargs):
         self.addAlgorithm(ShorelineDuration())
         self.addAlgorithm(SubaerialDuration())
-        # add additional algorithms here
-        # self.addAlgorithm(MyOtherAlgorithm())
+        self.addAlgorithm(LastExposure())
 
     def id(self, *args, **kwargs):
         """The ID of your plugin, used for identifying the provider.
