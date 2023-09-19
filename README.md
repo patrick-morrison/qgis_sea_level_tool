@@ -106,11 +106,13 @@ From 1.3 the plugin includes processing algorithms for combining sea level curve
 - Shoreline duration visualises sea level bins - to highlight long-term coastal features.
 - Last exposed calculates the most recent age a place was above water - which can help track the timing of inundation, and provides a minimum age for any sites.
 
-  ![subaerial](https://github.com/patrick-morrison/qgis_sea_level_tool/assets/2309844/c9aecc03-79cf-4242-bad9-64c1cc3562f4)
+![subaerial loop](https://github.com/patrick-morrison/qgis_sea_level_tool/assets/2309844/0dd903a8-5d0d-407e-a3fd-713c069944bb)
+
 
 It is possible to make profiles through these products using the elevation profile tool. The gif below shows subaerial duration in green, and the shoreline positions in blue.
 
-![profiles](https://github.com/patrick-morrison/qgis_sea_level_tool/assets/2309844/11708a77-bc32-42d2-bc88-39d514c40f62)
+![profiles_loop](https://github.com/patrick-morrison/qgis_sea_level_tool/assets/2309844/d2d2211a-0848-4943-bf11-9da11a7f5aa2)
+
 
 ## Linking other features
 
@@ -127,7 +129,8 @@ Or in this case, we can make them accumulate by age:
 (5000-(@age*1000-"C14_AGE"))/50
 ```
 
-![first peopling](https://github.com/patrick-morrison/qgis_sea_level_tool/assets/2309844/4913948f-c465-444d-87c9-90425bc6fb20)
+![first peopling loop](https://github.com/patrick-morrison/qgis_sea_level_tool/assets/2309844/b3dabb15-02a2-4e19-baca-ff6b35781203)
+
 
 
 
