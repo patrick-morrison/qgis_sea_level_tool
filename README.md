@@ -5,6 +5,7 @@ Created by Patrick Morrison 2022.
 ## Installation
 
 This plugin can be installed using the latest release on Github. In the QGIS plugin manager, install from a zip. It will hopefully soon be available from the QGIS Plugins Repository.
+Embeds pyqtgraph https://www.pyqtgraph.org.
 
 ## Data
 You will need a sea level curve and a digital elevation model (DEM). 
@@ -84,6 +85,10 @@ cat $(find . -maxdepth 1 -name "*.png" | sort -V -r) |
   ffmpeg -framerate 25 -i - -c:v libx264 -profile:v high -crf 20 -pix_fmt yuv420p sea_level_video.mp4
 ```
 
+Turn them into gifs:
+```
+ffmpeg -i sea_level_video.mp4 -vf "fps=10,scale=1080:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" tasmania.gif
+```
 Tasmania since the last glacial maximum (22ka). Note the land bridge that was present in the ice age, and how islands were formed as the sea level rose.
 
 ![tasmania2](https://user-images.githubusercontent.com/2309844/229721573-6b63f31d-02ee-43b3-a18e-a2bb6585b963.gif)
@@ -93,5 +98,37 @@ Any elevation layer you can draw in QGIS, you can explore and animate. What if w
 
 ![tasmania_highres2](https://user-images.githubusercontent.com/2309844/229951927-e374b4af-06e6-41e9-b633-5e988b1c1c16.gif)
 
-Embeds pyqtgraph https://www.pyqtgraph.org.
+## Sea level processing algorithms
+
+From 1.3 the plugin includes processing algorithms for combining sea level curves and bathymetry into key indicies. 
+
+- Subaerial duration calculates the amount of time a place was exposed (and not underwater).
+- Shoreline duration visualises sea level bins - to highlight long-term coastal features.
+- Last exposed calculates the most recent age a place was above water - which can help track the timing of inundation, and provides a minimum age for any sites.
+
+  ![subaerial](https://github.com/patrick-morrison/qgis_sea_level_tool/assets/2309844/c9aecc03-79cf-4242-bad9-64c1cc3562f4)
+
+It is possible to make profiles through these products using the elevation profile tool. The gif below shows subaerial duration in green, and the shoreline positions in blue.
+
+![profiles](https://github.com/patrick-morrison/qgis_sea_level_tool/assets/2309844/11708a77-bc32-42d2-bc88-39d514c40f62)
+
+## Linking other features
+
+The animation below using the SahulArch OSL, TL and Radiocarbon collections to visualise site. 
+We can make sites show only if their radiocarbon age is with 5,000 years using this function on transparency:
+
+```
+(5000-(abs("C14 AGE"- @age*1000)))/50
+```
+
+Or in this case, we can make them accumulate by age:
+
+```
+(5000-(@age*1000-"C14_AGE"))/50
+```
+
+![first peopling](https://github.com/patrick-morrison/qgis_sea_level_tool/assets/2309844/4913948f-c465-444d-87c9-90425bc6fb20)
+
+
+
 
