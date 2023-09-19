@@ -48,7 +48,7 @@ class LastExposure(QgsProcessingAlgorithm):
 
     def shortHelpString(self):
         return self.tr("""
-        This algorith calculates the most recent date land was subaerially exposed based on a sea level curve. """)
+        This algorithm calculates the most recent date land was subaerially exposed based on a sea level curve. """)
 
     def initAlgorithm(self, config=None):
 
