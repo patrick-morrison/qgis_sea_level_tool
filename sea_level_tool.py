@@ -36,12 +36,29 @@ from .resources import *
 
 # Import the code for the DockWidget
 from .sea_level_tool_dockwidget import SeaLevelToolDockWidget
-import os.path
 
 
 
 class SeaLevelTool:
     """QGIS Plugin Implementation."""
+    
+    # Constants to replace magic numbers
+    SLIDER_SCALE_FACTOR = 10  # Scale factor between sliders and spinboxes
+    MESSAGE_DURATION = 5  # Duration for info messages in seconds
+    ERROR_MESSAGE_DURATION = 10  # Duration for error messages in seconds
+    DEFAULT_AGE = 0  # Default age value in ka
+    DEFAULT_SEA_LEVEL = 0  # Default sea level value in meters
+    
+    # No data validation ranges - accept any user input
+    
+    # Grant et al. (2012) sea level curve - corrected to match actual CSV data
+    GRANT_CURVE = {
+        0: 0, 1: -0.1, 2: 0.8, 3: -1.5, 4: -6.0, 5: -9.3, 6: -5.8, 7: -12.0, 8: -17.0, 9: -21.0, 10: -35.0,
+        11: -34.3, 12: -58.7, 13: -74.0, 14: -75.0, 15: -80.0, 16: -85.0, 17: -87.0, 18: -90.0, 19: -87.1, 20: -87.1,
+        25: -99.4, 30: -97.0, 35: -81.0, 40: -83.0, 45: -76.0, 50: -75.0, 55: -74.0, 60: -68.0, 65: -98.0, 70: -81.0,
+        75: -61.0, 80: -54.0, 85: -36.0, 90: -53.0, 95: -45.0, 100: -35.0, 105: -40.1, 110: -56.0, 115: -34.0, 120: -17.8,
+        125: -2.0, 130: -3.7, 135: -74.0, 140: -67.0, 145: -86.0, 150: -92.0
+    }
 
     def __init__(self, iface):
         """Constructor.
@@ -77,10 +94,18 @@ class SeaLevelTool:
         self.toolbar = self.iface.addToolBar(u'SeaLevelTool')
         self.toolbar.setObjectName(u'SeaLevelTool')
 
-        #print "** INITIALIZING SeaLevelTool"
 
         self.pluginIsActive = False
         self.dockwidget = None
+        
+        # Initialize global variables to prevent NameError
+        global total_change, age, curve, bath, chosen_filename, sea_level
+        total_change = 0
+        age = 0
+        curve = self.GRANT_CURVE.copy()  # Use class constant
+        bath = None
+        chosen_filename = None
+        sea_level = 0
 
 
     # noinspection PyMethodMayBeStatic
@@ -196,7 +221,6 @@ class SeaLevelTool:
     def onClosePlugin(self):
         """Cleanup necessary items here when plugin dockwidget is closed"""
 
-        #print "** CLOSING SeaLevelTool"
         self.dockwidget.level.setValue(0)
 
         # disconnects
@@ -214,7 +238,6 @@ class SeaLevelTool:
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
 
-        #print "** UNLOAD SeaLevelTool"
 
         for action in self.actions:
             self.iface.removePluginMenu(
@@ -230,12 +253,18 @@ class SeaLevelTool:
         level_slider = self.dockwidget.level_slider.value()/10
 
         if type == 'slider':
-            self.dockwidget.level_slider.sliderMoved.disconnect()
-            self.dockwidget.level_slider.setValue(level_box)
+            try:
+                self.dockwidget.level_slider.sliderMoved.disconnect()
+            except TypeError:
+                pass
+            self.dockwidget.level_slider.setValue(int(level_box))
             self.dockwidget.level_slider.sliderMoved.connect(lambda v: self.adjust_levels('box', v))
 
         if type == 'box':
-            self.dockwidget.level.valueChanged.disconnect()
+            try:
+                self.dockwidget.level.valueChanged.disconnect()
+            except TypeError:
+                pass
             self.dockwidget.level.setValue(level_slider)
             self.dockwidget.level.valueChanged.connect(lambda v: self.adjust_levels("slider", v))
 
@@ -244,39 +273,52 @@ class SeaLevelTool:
         age_slider = self.dockwidget.age_slider.value()/10
 
         if type == 'slider':
-            self.dockwidget.age_slider.sliderMoved.disconnect()
-            self.dockwidget.age_slider.setValue(age_box)
+            try:
+                self.dockwidget.age_slider.sliderMoved.disconnect()
+            except TypeError:
+                pass
+            self.dockwidget.age_slider.setValue(int(age_box))
             self.dockwidget.age_slider.sliderMoved.connect(lambda v: self.adjust_ages('box', v))
 
         if type == 'box':
-            self.dockwidget.age.valueChanged.disconnect()
+            try:
+                self.dockwidget.age.valueChanged.disconnect()
+            except TypeError:
+                pass
             self.dockwidget.age.setValue(age_slider)
             self.dockwidget.age.valueChanged.connect(lambda v: self.adjust_ages("slider", v))
 
     def set_level_max(self, v):
         self.dockwidget.level.setMaximum(v)
         self.dockwidget.level_min.setMaximum(v)
-        self.dockwidget.level_slider.setMaximum(v*10)
+        self.dockwidget.level_slider.setMaximum(int(v*10))
     def set_level_min(self, v):
         self.dockwidget.level.setMinimum(v)
         self.dockwidget.level_max.setMinimum(v)
-        self.dockwidget.level_slider.setMinimum(v*10)
+        self.dockwidget.level_slider.setMinimum(int(v*10))
 
     def set_oldest(self, v):
         self.dockwidget.age.setMaximum(v)
         self.dockwidget.youngest.setMaximum(v)
-        self.dockwidget.age_slider.setMaximum(v*10)
+        self.dockwidget.age_slider.setMaximum(int(v*10))
     def set_youngest(self, v):
         self.dockwidget.age.setMinimum(v)
         self.dockwidget.oldest.setMinimum(v)
-        self.dockwidget.age_slider.setMinimum(v*10)
+        self.dockwidget.age_slider.setMinimum(int(v*10))
     
     def msl(self):
         global total_change
         total_change = 0
     
     def render(self):
-        global age
+        global age, chosen_filename
+
+        # Check if filename is selected
+        try:
+            chosen_filename
+        except NameError:
+            self.iface.messageBar().pushMessage("No output file selected!", "Please select output file first", level=Qgis.Warning, duration=5)
+            return
 
         layout_name = self.dockwidget.composer_box.currentText()
 
@@ -329,34 +371,55 @@ class SeaLevelTool:
 
     def change_sea(self, level):
         try:
-            global total_change
-            sea_level = level-total_change
+            global total_change, bath
+            
+            # Validate inputs
+            if not isinstance(level, (int, float)):
+                self.iface.messageBar().pushMessage("Invalid sea level value", "Please enter a numeric value", level=Qgis.Warning, duration=self.MESSAGE_DURATION)
+                return
+                
+            # Check if bath layer exists and is valid
+            if bath is None:
+                self.iface.messageBar().pushMessage("No elevation data!", "Please select a DEM layer first", level=Qgis.Warning, duration=self.MESSAGE_DURATION)
+                return
+                
+            # Check if layer has the right renderer type
+            if not hasattr(bath, 'renderer') or bath.renderer() is None:
+                self.iface.messageBar().pushMessage("Invalid layer!", "Selected layer has no renderer", level=Qgis.Warning, duration=5)
+                return
+                
+            renderer = bath.renderer()
+            if not hasattr(renderer, 'shader') or renderer.shader() is None:
+                self.iface.messageBar().pushMessage("Wrong layer style!", "Please change to singleband pseudocolour", level=Qgis.Warning, duration=5)
+                return
+                
+            shader_func = renderer.shader().rasterShaderFunction()
+            if shader_func is None:
+                self.iface.messageBar().pushMessage("Invalid shader!", "Layer shader is not properly configured", level=Qgis.Warning, duration=5)
+                return
 
-            global bath
-
-            items = bath.renderer().shader().rasterShaderFunction().colorRampItemList()
+            sea_level = level - total_change
+            items = shader_func.colorRampItemList()
                 
             for item in items:
                 item.value += sea_level
                     
             total_change += sea_level
-            self.h_bar.setPos(total_change)
+            if hasattr(self, 'h_bar'):
+                self.h_bar.setPos(total_change)
             QgsExpressionContextUtils.setProjectVariable(QgsProject.instance(),'sea_level',total_change)
                 
-            bath.renderer().shader().rasterShaderFunction().setColorRampItemList(items)
+            shader_func.setColorRampItemList(items)
             bath.triggerRepaint()
             bath.emitStyleChanged()
 
-        except NameError:
-            self.iface.messageBar().pushMessage("No elevation data!", "Select DEM", level=Qgis.Warning, duration=5)
-        
-        except AttributeError:
-            self.iface.messageBar().pushMessage("Wrong layer style", "Change to singleband pseudocolour", level=Qgis.Warning, duration=5)
+        except Exception as e:
+            self.iface.messageBar().pushMessage("Error changing sea level", f"Unexpected error: {str(e)}", level=Qgis.Critical, duration=self.ERROR_MESSAGE_DURATION)
 
 
     def select_raster_fields(self):
         global bath
-        if self.dockwidget.level.value != 0:
+        if self.dockwidget.level.value() != 0:
             self.dockwidget.level.setValue(0)
         bath = self.dockwidget.raster_layer_box.currentLayer()
         self.dockwidget.style_button.setEnabled(True)
@@ -377,16 +440,34 @@ class SeaLevelTool:
         if data:
             curve = {}
             for feature in data.getFeatures(request):
-                age = float(feature["age"])
-                level = float(feature["sea_level"])
-                curve[age] = level
+                try:
+                    # Validate age field
+                    age_value = feature["age"]
+                    if age_value is None or age_value == '':
+                        continue  # Skip invalid records
+                    age = float(age_value)
+                    
+                    # Validate sea_level field
+                    level_value = feature["sea_level"]
+                    if level_value is None or level_value == '':
+                        continue  # Skip invalid records
+                    level = float(level_value)
+                    
+                    # No range validation - accept any numeric values
+                        
+                    curve[age] = level
+                    
+                except (ValueError, TypeError, KeyError) as e:
+                    # Skip invalid records and continue processing
+                    continue
         else:
-             curve = {0: 0, 10:0, 20:-120, 30:-100, 40:-80,50:-70,60:-70,70:-80,80:-50,90:-50,100:-30,110:-50,120:-10,130:5}
+            # Use Grant et al. (2012) fallback curve from class constant
+            curve = self.GRANT_CURVE.copy()
 
-        self.dockwidget.level_min.setValue(min(list(curve.values())))
-        self.dockwidget.level_max.setValue(max(list(curve.values())))
-        self.dockwidget.oldest.setValue(max(list(curve.keys())))
-        self.dockwidget.youngest.setValue(min(list(curve.keys())))
+        self.dockwidget.level_min.setValue(int(min(list(curve.values()))))
+        self.dockwidget.level_max.setValue(int(max(list(curve.values()))))
+        self.dockwidget.oldest.setValue(int(max(list(curve.keys()))))
+        self.dockwidget.youngest.setValue(int(min(list(curve.keys()))))
 
         global curve_interp
 
@@ -417,9 +498,9 @@ class SeaLevelTool:
 
     def change_resolution(self):
         self.select_curve_fields()
-        if self.dockwidget.level.value != 0:
+        if self.dockwidget.level.value() != 0:
             self.dockwidget.level.setValue(0)
-        if self.dockwidget.age.value != 0:
+        if self.dockwidget.age.value() != 0:
             self.dockwidget.age.setValue(0)
 
         if self.dockwidget.dec_check.isChecked():
@@ -441,12 +522,33 @@ class SeaLevelTool:
 
 
     def change_age(self, new_age):
-        global age
+        global age, curve
+        
+        # Validate input
+        if not isinstance(new_age, (int, float)):
+            return
+            
         age = new_age
-        closest_age = min(curve, key=lambda x:abs(x-age))
-        self.dockwidget.level.setValue(curve[closest_age])
+        
+        # Check if curve is initialized and has data
+        try:
+            if not curve or len(curve) == 0:
+                return
+        except NameError:
+            return
+            
+        # Find closest age safely
+        try:
+            closest_age = min(curve.keys(), key=lambda x: abs(x - age))
+            sea_level_value = curve.get(closest_age, self.DEFAULT_SEA_LEVEL)
+            self.dockwidget.level.setValue(sea_level_value)
+        except (ValueError, TypeError):
+            # Fallback to default if curve data is invalid
+            self.dockwidget.level.setValue(self.DEFAULT_SEA_LEVEL)
+            
         QgsExpressionContextUtils.setProjectVariable(QgsProject.instance(),'age',age)
-        self.v_bar.setPos(age)
+        if hasattr(self, 'v_bar'):
+            self.v_bar.setPos(age)
 
     def showDialog(self):
             msgBox = QMessageBox()
@@ -462,8 +564,8 @@ class SeaLevelTool:
             msgBox.setDefaultButton(msgBox.Cancel)
             msgBox.setEscapeButton(msgBox.Cancel)
 
-            discrete_button = msgBox.addButton('Earth', msgBox.ActionRole)
-            discrete_button.clicked.connect(lambda v: self.changeStyle('earth'))
+            earth_button = msgBox.addButton('Earth', msgBox.ActionRole)
+            earth_button.clicked.connect(lambda v: self.changeStyle('earth'))
 
             natural_button = msgBox.addButton('Wiki', msgBox.ActionRole)
             natural_button.clicked.connect(lambda v: self.changeStyle('natural'))
@@ -471,13 +573,19 @@ class SeaLevelTool:
             discrete_button = msgBox.addButton('Discrete', msgBox.ActionRole)
             discrete_button.clicked.connect(lambda v: self.changeStyle('discrete'))
 
-            msgBox.exec()
+            msgBox.exec_()
 
     def changeStyle(self, style):
         global bath
         path = os.path.dirname(os.path.abspath(__file__))
-        if total_change !=0:
+        
+        # Reset sea level and age to 0 when loading predefined styles
+        if total_change != 0:
             self.change_sea(0)
+        if self.dockwidget.age.value() != 0:
+            self.dockwidget.age.setValue(0)
+        if self.dockwidget.level.value() != 0:
+            self.dockwidget.level.setValue(0)
 
         if style == 'natural':
             natural = path + "/styles/sea_level_natural_style.qml"
@@ -521,7 +629,6 @@ class SeaLevelTool:
         if not self.pluginIsActive:
             self.pluginIsActive = True
 
-            #print "** STARTING SeaLevelTool"
 
             # dockwidget may not exist if:
             #    first run of plugin
@@ -543,13 +650,15 @@ class SeaLevelTool:
         #bath = QgsProject.instance().mapLayersByName('bath')[0]
         self.dockwidget.raster_layer_box.setFilters(QgsMapLayerProxyModel.RasterLayer)
         self.dockwidget.raster_layer_box.layerChanged.connect(self.select_raster_fields)
-        self.dockwidget.raster_layer_box.setCurrentIndex(0)
-        #bath = self.dockwidget.raster_layer_box.currentLayer()
+        # Set layer box indices safely
+        if self.dockwidget.raster_layer_box.count() > 0:
+            self.dockwidget.raster_layer_box.setCurrentIndex(0)
         self.msl()
 
         self.dockwidget.curve_layer_box.setFilters(QgsMapLayerProxyModel.NoGeometry)
         self.dockwidget.curve_layer_box.layerChanged.connect(self.select_curve_fields)
-        self.dockwidget.curve_layer_box.setCurrentIndex(0)
+        if self.dockwidget.curve_layer_box.count() > 0:
+            self.dockwidget.curve_layer_box.setCurrentIndex(0)
 
         
         #Set title decoration to [% @sea_level %]m
@@ -559,7 +668,6 @@ class SeaLevelTool:
         self.dockwidget.animate_button.clicked.connect(self.animate)
 
         global curve
-        curve = {0: 0, 10:0, 20:-120, 30:-100, 40:-80,50:-70,60:-70,70:-80,80:-50,90:-50,100:-30,110:-50,120:-10,130:5}
         self.dockwidget.interp_check.stateChanged.connect(self.select_curve_fields)
         self.dockwidget.dec_check.stateChanged.connect(self.change_resolution)
 
@@ -569,13 +677,14 @@ class SeaLevelTool:
 
         pen = pg.mkPen(color=(0, 0, 0), width=3)
         graph = self.dockwidget.curve_graph
+        graph.clear()  # Clear any existing plots to prevent overlays
         graph.plot(list(curve.keys()),list(curve.values()), symbol='o', pen=pen, symbolSize=10)
         styles = {'color':'b', 'font-size':'12px'}
         graph.setLabel('left', 'Sea level (m)', **styles)
         graph.setLabel('bottom', 'Age (ka)', **styles)
         graph.showGrid(x=True, y=True)
         graph.invertX(True)
-        current_pen = pg.mkPen(color='b', width=2, style=QtCore.Qt.DotLine)
+        current_pen = pg.mkPen(color='b', width=2, style=Qt.DotLine)
         self.h_bar = pg.InfiniteLine(movable=False, angle=0,pos=0,pen=current_pen)
         graph.addItem(self.h_bar)
         self.v_bar = pg.InfiniteLine(movable=False, angle=90,pos=0,pen=current_pen)

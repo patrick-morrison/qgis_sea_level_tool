@@ -6,7 +6,7 @@
 name=SeaLevelTool
 qgisMinimumVersion=3.0
 description=Adjust styling on raster layer by a sea level curve.
-version=1.3
+version=1.4
 author=Patrick Morrison
 email=patrick.morrison@research.uwa.edu.au
 
@@ -19,8 +19,17 @@ repository=https://github.com/patrick-morrison/qgis_sea_level_tool
 # Recommended items:
 
 hasProcessingProvider=yes
-# Uncomment the following line and add your changelog:
-# changelog=
+# Changelog for version 1.4:
+changelog=
+    Version 1.4 - Bug fixes and improvements:
+    - Fixed critical TypeError with setValue() float to int conversion for QGIS compatibility
+    - Added proper error handling for disconnect() signal failures  
+    - Fixed graph overlay issues with proper clearing
+    - Updated Grant et al. (2012) curve to match actual CSV data
+    - Fixed exec() vs exec_() compatibility for Qt dialogs
+    - Enhanced input validation and error messaging
+    - Added class constants to eliminate code duplication
+    - Improved professional code quality
 
 # Tags are comma separated with spaces allowed
 tags=python, sea level, archaeology, geomorphology
