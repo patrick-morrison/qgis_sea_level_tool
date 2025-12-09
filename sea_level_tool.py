@@ -422,10 +422,47 @@ class SeaLevelTool:
         if self.dockwidget.level.value() != 0:
             self.dockwidget.level.setValue(0)
         bath = self.dockwidget.raster_layer_box.currentLayer()
-        self.dockwidget.style_button.setEnabled(True)
-        self.dockwidget.animate_button.setEnabled(True)
-        self.dockwidget.fileButton.setEnabled(True)
-        self.dockwidget.composer_box.setEnabled(True)
+
+        # Enable/disable all controls based on whether elevation layer is selected
+        is_enabled = bath is not None
+        
+        # Highlight elevation layer box when nothing is selected
+        if bath is None:
+            self.dockwidget.raster_layer_box.setStyleSheet(
+                "QgsMapLayerComboBox { "
+                "border: 3px solid #4A90E2; "
+                "border-radius: 4px; "
+                "}"
+            )
+        else:
+            self.dockwidget.raster_layer_box.setStyleSheet("")
+        
+        self.dockwidget.style_button.setEnabled(is_enabled)
+        self.dockwidget.animate_button.setEnabled(is_enabled)
+        self.dockwidget.fileButton.setEnabled(is_enabled)
+        self.dockwidget.composer_box.setEnabled(is_enabled)
+        
+        # Disable curve selection and controls
+        self.dockwidget.curve_layer_box.setEnabled(is_enabled)
+        
+        # Disable sliders and spinboxes
+        self.dockwidget.level.setEnabled(is_enabled)
+        self.dockwidget.level_slider.setEnabled(is_enabled)
+        self.dockwidget.age.setEnabled(is_enabled)
+        self.dockwidget.age_slider.setEnabled(is_enabled)
+        
+        # Disable range controls
+        self.dockwidget.level_min.setEnabled(is_enabled)
+        self.dockwidget.level_max.setEnabled(is_enabled)
+        self.dockwidget.oldest.setEnabled(is_enabled)
+        self.dockwidget.youngest.setEnabled(is_enabled)
+        
+        # Disable checkboxes
+        self.dockwidget.interp_check.setEnabled(is_enabled)
+        self.dockwidget.dec_check.setEnabled(is_enabled)
+        
+        # Disable graph
+        self.dockwidget.curve_graph.setEnabled(is_enabled)
         
 
     def select_curve_fields(self):
@@ -433,6 +470,7 @@ class SeaLevelTool:
 
         request = QgsFeatureRequest()
         data = self.dockwidget.curve_layer_box.currentLayer()
+
         clause = QgsFeatureRequest.OrderByClause(QgsExpression('to_real(age)'), ascending=True)
         orderby = QgsFeatureRequest.OrderBy([clause])
         request.setOrderBy(orderby)
@@ -551,18 +589,36 @@ class SeaLevelTool:
             self.v_bar.setPos(age)
 
     def showDialog(self):
+            global bath
+
             msgBox = QMessageBox()
+            msgBox.setTextFormat(Qt.TextFormat.RichText)
             msgBox.setIcon(QMessageBox.Icon.Information)
-            msgBox.setWindowTitle("Set Raster Style")
-            msgBox.setText("Overwrite raster style with bathy/topo.")
-            msgBox.setInformativeText("""Set map title (View->Decorations) according to variables:
-             \n [% @sea_level %]m [% @age %]ka
-             \n Make a print layout and select it for custom renders.
-             """)
+            msgBox.setWindowTitle("Choose Bathymetric/Topographic Style")
+            msgBox.setText(
+                "A QGIS plugin for visualizing paleo sea level changes.<br><br>"
+                "<b>Citation & Instructions:</b><br>"
+                "<a href='https://github.com/patrick-morrison/qgis_sea_level_tool'>"
+                "github.com/patrick-morrison/qgis_sea_level_tool</a>"
+            )
+            msgBox.setInformativeText(
+                "<b>Custom Renders:</b><br>"
+                "Make a print layout and select it for custom renders.<br><br>"
+
+                "<b>Map Title Variables:</b><br>"
+                "Set map title (View → Decorations → Title Label) using:<br>"
+                "<code>[% @sea_level %]m [% @age %]ka</code><br><br>"
+
+                "The tool works by adjusting singleband pseudocolour styling on an elevation layer. "
+                "You can use any custom style, or select a preset below to override it."
+            )
 
             msgBox.setStandardButtons(QMessageBox.StandardButton.Cancel)
             msgBox.setDefaultButton(QMessageBox.StandardButton.Cancel)
             msgBox.setEscapeButton(QMessageBox.StandardButton.Cancel)
+
+            satellite_button = msgBox.addButton('Satellite', QMessageBox.ButtonRole.ActionRole)
+            satellite_button.clicked.connect(lambda v: self.changeStyle('satellite'))
 
             earth_button = msgBox.addButton('Earth', QMessageBox.ButtonRole.ActionRole)
             earth_button.clicked.connect(lambda v: self.changeStyle('earth'))
@@ -598,6 +654,10 @@ class SeaLevelTool:
         if style == 'earth':
             earth = path + "/styles/sea_level_earth2_style.qml"
             bath.loadNamedStyle(earth)
+
+        if style == 'satellite':
+            satellite = path + "/styles/sea_level_satellite_style.qml"
+            bath.loadNamedStyle(satellite)
 
         bath.triggerRepaint()
         bath.emitStyleChanged()
@@ -647,12 +707,14 @@ class SeaLevelTool:
             self.dockwidget.show()
         
         global bath
+        bath = None
         #bath = QgsProject.instance().mapLayersByName('bath')[0]
         self.dockwidget.raster_layer_box.setFilters(QgsMapLayerProxyModel.RasterLayer)
         self.dockwidget.raster_layer_box.layerChanged.connect(self.select_raster_fields)
-        # Set layer box indices safely
-        if self.dockwidget.raster_layer_box.count() > 0:
-            self.dockwidget.raster_layer_box.setCurrentIndex(0)
+        # Don't auto-select - start with nothing selected
+        self.dockwidget.raster_layer_box.setCurrentIndex(-1)
+        # Set initial disabled state
+        self.select_raster_fields()
         self.msl()
 
         self.dockwidget.curve_layer_box.setFilters(QgsMapLayerProxyModel.NoGeometry)
@@ -685,9 +747,9 @@ class SeaLevelTool:
         graph.showGrid(x=True, y=True)
         graph.invertX(True)
         current_pen = pg.mkPen(color='b', width=2, style=Qt.PenStyle.DotLine)
-        self.h_bar = pg.InfiniteLine(movable=False, angle=0,pos=0,pen=current_pen)
+        self.h_bar = pg.InfiniteLine(movable=False, angle=0, pos=0, pen=current_pen)
         graph.addItem(self.h_bar)
-        self.v_bar = pg.InfiniteLine(movable=False, angle=90,pos=0,pen=current_pen)
+        self.v_bar = pg.InfiniteLine(movable=False, angle=90, pos=0, pen=current_pen)
         graph.addItem(self.v_bar)
 
         layouts_list = QgsProject.instance().layoutManager().printLayouts()
