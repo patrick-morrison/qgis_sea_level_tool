@@ -594,7 +594,7 @@ class SeaLevelTool:
             msgBox = QMessageBox()
             msgBox.setTextFormat(Qt.TextFormat.RichText)
             msgBox.setIcon(QMessageBox.Icon.Information)
-            msgBox.setWindowTitle("Choose Bathymetric/Topographic Style")
+            msgBox.setWindowTitle("Choose Bathy/Topo Style")
             msgBox.setText(
                 "A QGIS plugin for visualizing paleo sea level changes.<br><br>"
                 "<b>Citation & Instructions:</b><br>"
