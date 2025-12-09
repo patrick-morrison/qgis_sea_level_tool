@@ -131,7 +131,12 @@ Or in this case, we can make them accumulate by age:
 
 ![first peopling loop](https://github.com/patrick-morrison/qgis_sea_level_tool/assets/2309844/b3dabb15-02a2-4e19-baca-ff6b35781203)
 
+## Development
 
-
+Package for release:
+```bash
+git tag v1.5
+make package VERSION=v1.5
+```
 
 
