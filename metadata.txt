@@ -5,10 +5,12 @@
 [general]
 name=SeaLevelTool
 qgisMinimumVersion=3.0
+qgisMaximumVersion=4.99
 description=Adjust styling on raster layer by a sea level curve.
-version=1.4
+version=1.5
 author=Patrick Morrison
 email=patrick.morrison@research.uwa.edu.au
+supportsQt6=True
 
 about=Adjust styling on raster layer by a sea level curve.
 
@@ -19,8 +21,18 @@ repository=https://github.com/patrick-morrison/qgis_sea_level_tool
 # Recommended items:
 
 hasProcessingProvider=yes
-# Changelog for version 1.4:
+# Changelog for version 1.5:
 changelog=
+    Version 1.5 - Qt6 compatibility:
+    - Added full Qt5/Qt6 compatibility for QGIS 3.x and 4.x
+    - Updated Qt enums to use namespaced format (Qt.DockWidgetArea.BottomDockWidgetArea, etc.)
+    - Fixed QMessageBox enums for Qt6 (Icon.Information, StandardButton.Cancel, ButtonRole.ActionRole)
+    - Fixed Qt.PenStyle.DotLine for pyqtgraph compatibility
+    - Changed exec_() to exec() for Qt6 compatibility
+    - Updated resource imports to use qgis.PyQt for cross-version compatibility
+    - Added supportsQt6=True to metadata
+    - Updated Makefile to auto-fix resource imports during compilation
+
     Version 1.4 - Bug fixes and improvements:
     - Fixed critical TypeError with setValue() float to int conversion for QGIS compatibility
     - Added proper error handling for disconnect() signal failures  

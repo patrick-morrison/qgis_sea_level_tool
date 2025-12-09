@@ -40,7 +40,7 @@ SOURCES = \
 	__init__.py \
 	sea_level_tool.py sea_level_tool_dockwidget.py
 
-PLUGINNAME = sea_level_tool
+PLUGINNAME = qgis_sea_level_tool
 
 PY_FILES = \
 	__init__.py \
@@ -90,6 +90,7 @@ compile: $(COMPILED_RESOURCE_FILES)
 
 %.py : %.qrc $(RESOURCES_SRC)
 	pyrcc5 -o $*.py  $<
+	@sed -i.bak 's/from PyQt5 import/from qgis.PyQt import/g' $*.py && rm $*.py.bak
 
 %.qm : %.ts
 	$(LRELEASE) $<
@@ -157,7 +158,7 @@ zip: deploy dclean
 	# The zip target deploys the plugin and creates a zip file with the deployed
 	# content. You can then upload the zip file on http://plugins.qgis.org
 	rm -f $(PLUGINNAME).zip
-	cd $(HOME)/$(QGISDIR)/python/plugins; zip -9r $(CURDIR)/$(PLUGINNAME).zip $(PLUGINNAME)
+	cd $(HOME)/$(QGISDIR)/python/plugins; zip -9r $(CURDIR)/$(PLUGINNAME).zip $(PLUGINNAME) -x "*.DS_Store" -x "__MACOSX/*" -x "*.pyc"
 
 package: compile
 	# Create a zip package of the plugin named $(PLUGINNAME).zip.

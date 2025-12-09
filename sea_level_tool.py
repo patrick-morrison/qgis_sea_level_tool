@@ -333,7 +333,7 @@ class SeaLevelTool:
             event_loop = QEventLoop()
             renderer.finished.connect(event_loop.quit)
             renderer.start()
-            event_loop.exec_()
+            event_loop.exec()
 
             img = renderer.renderedImage()
             img.save(append_age(chosen_filename, age))
@@ -348,7 +348,7 @@ class SeaLevelTool:
             event_loop = QEventLoop()
             renderer.finished.connect(event_loop.quit)
             renderer.start()
-            event_loop.exec_()
+            event_loop.exec()
 
             #self.iface.openLayoutDesigner(layout)
             layout.refresh()
@@ -552,7 +552,7 @@ class SeaLevelTool:
 
     def showDialog(self):
             msgBox = QMessageBox()
-            msgBox.setIcon(QMessageBox.Information)
+            msgBox.setIcon(QMessageBox.Icon.Information)
             msgBox.setWindowTitle("Set Raster Style")
             msgBox.setText("Overwrite raster style with bathy/topo.")
             msgBox.setInformativeText("""Set map title (View->Decorations) according to variables:
@@ -560,20 +560,20 @@ class SeaLevelTool:
              \n Make a print layout and select it for custom renders.
              """)
 
-            msgBox.setStandardButtons(msgBox.Cancel)
-            msgBox.setDefaultButton(msgBox.Cancel)
-            msgBox.setEscapeButton(msgBox.Cancel)
+            msgBox.setStandardButtons(QMessageBox.StandardButton.Cancel)
+            msgBox.setDefaultButton(QMessageBox.StandardButton.Cancel)
+            msgBox.setEscapeButton(QMessageBox.StandardButton.Cancel)
 
-            earth_button = msgBox.addButton('Earth', msgBox.ActionRole)
+            earth_button = msgBox.addButton('Earth', QMessageBox.ButtonRole.ActionRole)
             earth_button.clicked.connect(lambda v: self.changeStyle('earth'))
 
-            natural_button = msgBox.addButton('Wiki', msgBox.ActionRole)
+            natural_button = msgBox.addButton('Wiki', QMessageBox.ButtonRole.ActionRole)
             natural_button.clicked.connect(lambda v: self.changeStyle('natural'))
 
-            discrete_button = msgBox.addButton('Discrete', msgBox.ActionRole)
+            discrete_button = msgBox.addButton('Discrete', QMessageBox.ButtonRole.ActionRole)
             discrete_button.clicked.connect(lambda v: self.changeStyle('discrete'))
 
-            msgBox.exec_()
+            msgBox.exec()
 
     def changeStyle(self, style):
         global bath
@@ -643,7 +643,7 @@ class SeaLevelTool:
 
             # show the dockwidget
             # TODO: fix to allow choice of dock location
-            self.iface.addDockWidget(Qt.BottomDockWidgetArea, self.dockwidget)
+            self.iface.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.dockwidget)
             self.dockwidget.show()
         
         global bath
@@ -684,7 +684,7 @@ class SeaLevelTool:
         graph.setLabel('bottom', 'Age (ka)', **styles)
         graph.showGrid(x=True, y=True)
         graph.invertX(True)
-        current_pen = pg.mkPen(color='b', width=2, style=Qt.DotLine)
+        current_pen = pg.mkPen(color='b', width=2, style=Qt.PenStyle.DotLine)
         self.h_bar = pg.InfiniteLine(movable=False, angle=0,pos=0,pen=current_pen)
         graph.addItem(self.h_bar)
         self.v_bar = pg.InfiniteLine(movable=False, angle=90,pos=0,pen=current_pen)
