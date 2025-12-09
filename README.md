@@ -17,7 +17,7 @@ A great source of bathymetry data is GEBCO. They have a tool to download data: h
 - Drag the DEM into the canvas
 - Select the DEM with the elevation dropdown.
 - Style DEM with singleband pseudocolour, in a way that represents the shoreline at present.
-- or, optionally there there is a style button with three presets.
+- Or, optionally there is a style button with three presets.
 - Change vertical slider to move sea level.
 
 ![dem2](https://user-images.githubusercontent.com/2309844/229721275-7a5a846a-eb3b-41a4-b81b-3703103703b6.gif)
@@ -31,7 +31,7 @@ It must have the headings "age" and "sea_level", in ka and metres.
 - Create csv with columns "age" and "sea_level".
 - Drop it into main QGIS canvas.
 - Select the layer with the curve dropdown.
-- Change horizonal slider to move sea level with age.
+- Change horizontal slider to move sea level with age.
 - Toggle 'Interp.' checkbox for linear interpolation by thousand years.
 - Check the 'Dec.' checkbox to increase resolution to centuries (and to increase precision on sea level). 
 - In View-Decorations-Title Label you can use the sea_level and age variable to construct a dynamic map label,
@@ -94,13 +94,13 @@ Tasmania since the last glacial maximum (22ka). Note the land bridge that was pr
 ![tasmania2](https://user-images.githubusercontent.com/2309844/229721573-6b63f31d-02ee-43b3-a18e-a2bb6585b963.gif)
 
 ## Completely flexible
-Any elevation layer you can draw in QGIS, you can explore and animate. What if we wanted to take the new Geoscience Australia DEM of the Bass Strait, style it naturally, add a reliefshade with Eduard, and and combine it with the Lambeck 2014 sea level curve? That's easy! This took 10 minutes:
+Any elevation layer you can draw in QGIS, you can explore and animate. What if we wanted to take the new Geoscience Australia DEM of the Bass Strait, style it naturally, add a reliefshade with Eduard, and combine it with the Lambeck 2014 sea level curve? That's easy! This took 10 minutes:
 
 ![tasmania_highres2](https://user-images.githubusercontent.com/2309844/229951927-e374b4af-06e6-41e9-b633-5e988b1c1c16.gif)
 
 ## Sea level processing algorithms
 
-From 1.3 the plugin includes processing algorithms for combining sea level curves and bathymetry into key indicies. 
+From 1.3 the plugin includes processing algorithms for combining sea level curves and bathymetry into key indices. 
 
 - Subaerial duration calculates the amount of time a place was exposed (and not underwater).
 - Shoreline duration visualises sea level bins - to highlight long-term coastal features.
@@ -116,8 +116,8 @@ It is possible to make profiles through these products using the elevation profi
 
 ## Linking other features
 
-The animation below using the SahulArch OSL, TL and Radiocarbon collections to visualise site. 
-We can make sites show only if their radiocarbon age is with 5,000 years using this function on transparency:
+The animation below uses the SahulArch OSL, TL and Radiocarbon collections to visualise sites. 
+We can make sites show only if their radiocarbon age is within 5,000 years using this function on transparency:
 
 ```
 (5000-(abs("C14 AGE"- @age*1000)))/50
