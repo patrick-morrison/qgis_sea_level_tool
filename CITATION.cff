@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "Sea Level Tool: A QGIS Plugin for Dynamic Paleo-Sea Level Visualization and Analysis"
+authors:
+  - family-names: Morrison
+    given-names: Patrick
+    email: patrick.morrison@research.uwa.edu.au
+    affiliation: University of Western Australia
+    orcid: "https://orcid.org/0000-0000-0000-0000"  # TODO: replace with your ORCID
+version: "1.5"
+date-released: "2024-01-01"  # TODO: replace with actual release date
+license: GPL-3.0
+repository-code: "https://github.com/patrick-morrison/qgis_sea_level_tool"
+keywords:
+  - QGIS
+  - sea level
+  - palaeoclimate
+  - archaeology
+  - geomorphology
+  - palaeography
+  - GIS
+abstract: >
+  A QGIS plugin that enables dynamic visualization of paleo sea level changes
+  by adjusting styling on raster bathymetry/topography layers based on sea level
+  curves. Allows users to explore how coastal environments changed through
+  geological time, produce animated maps, and compute spatial indices such as
+  subaerial exposure duration and shoreline persistence.
+preferred-citation:
+  type: article
+  title: "Sea Level Tool: A QGIS Plugin for Dynamic Paleo-Sea Level Visualization and Analysis"
+  authors:
+    - family-names: Morrison
+      given-names: Patrick
+      orcid: "https://orcid.org/0000-0000-0000-0000"  # TODO: replace with your ORCID
+  journal: "Journal of Open Source Software"
+  year: 2026  # TODO: update when published
+  doi: ""  # TODO: add DOI when published

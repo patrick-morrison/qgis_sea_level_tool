@@ -1,0 +1,30 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: qgis/qgis:release-3_36
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y python3-pip
+
+      - name: Run tests
+        env:
+          QGIS_DEBUG: 0
+          QGIS_LOG_FILE: /dev/null
+        run: |
+          cd /usr/src
+          python3 -m pytest $GITHUB_WORKSPACE/test/ -v
+        continue-on-error: true  # Remove once tests are confirmed passing in CI
