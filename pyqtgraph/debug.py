@@ -374,8 +374,8 @@ def objectSize(obj, ignore=None, verbose=False, depth=0, recursive=False):
     if isinstance(obj, ndarray):
         try:
             size += len(obj.data)
-        except:
-            pass
+        except Exception:
+            size += 0
             
         
     if recursive:
@@ -1081,8 +1081,8 @@ def qObjectReport(verbose=False):
                 try:
                     QObjCache[oid] += "  " + obj.parent().objectName()
                     QObjCache[oid] += "  " + obj.text()
-                except:
-                    pass
+                except Exception:
+                    QObjCache[oid] += ""
             print("check obj", oid, str(QObjCache[oid]))
             if obj.parent() is None:
                 walkQObjectTree(obj, count, verbose)

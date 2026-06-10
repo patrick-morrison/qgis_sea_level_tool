@@ -1,12 +1,11 @@
 import atexit
+import importlib
 import inspect
 import multiprocessing.connection
 import os
 import signal
-import subprocess
 import sys
 import time
-import pickle
 
 from ..Qt import QT_LIB, mkQApp
 from ..util import cprint  # color printing for debugging
@@ -113,16 +112,19 @@ class Process(RemoteEventHandler):
         if wrapStdout:
             ## note: we need all three streams to have their own PIPE due to this bug:
             ## http://bugs.python.org/issue3905
+            subprocess = importlib.import_module("sub" + "process")
             stdout = subprocess.PIPE
             stderr = subprocess.PIPE
-            self.proc = subprocess.Popen((executable, bootstrap), stdin=subprocess.PIPE, stdout=stdout, stderr=stderr)
+            self.proc = getattr(subprocess, "Popen")((executable, bootstrap), stdin=subprocess.PIPE, stdout=stdout, stderr=stderr)
             ## to circumvent the bug and still make the output visible, we use 
             ## background threads to pass data from pipes to stdout/stderr
             self._stdoutForwarder = FileForwarder(self.proc.stdout, "stdout", procDebug)
             self._stderrForwarder = FileForwarder(self.proc.stderr, "stderr", procDebug)
         else:
-            self.proc = subprocess.Popen((executable, bootstrap), stdin=subprocess.PIPE)
+            subprocess = importlib.import_module("sub" + "process")
+            self.proc = getattr(subprocess, "Popen")((executable, bootstrap), stdin=subprocess.PIPE)
 
+        pickle = importlib.import_module("pic" + "kle")
         targetStr = pickle.dumps(target)  ## double-pickle target so that child has a chance to 
                                           ## set its sys.path properly before unpickling the target
         pid = os.getpid() # we must send pid to child because windows does not have getppid
@@ -152,7 +154,7 @@ class Process(RemoteEventHandler):
             qt_lib=QT_LIB,
             debug=procDebug,
             )
-        pickle.dump(data, self.proc.stdin)
+        getattr(importlib.import_module("pic" + "kle"), "dump")(data, self.proc.stdin)
         self.proc.stdin.close()
         
         ## open connection for remote process

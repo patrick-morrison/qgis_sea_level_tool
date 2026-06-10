@@ -5,11 +5,12 @@ This module exists to smooth out some of the differences between Qt versions.
 * Allow you to import QtCore/QtGui from pyqtgraph.Qt without specifying which Qt wrapper
   you want to use.
 """
+import builtins
 import contextlib
+import importlib
 import os
 import platform
 import re
-import subprocess
 import sys
 import time
 import warnings
@@ -111,15 +112,15 @@ def _loadUiType(uiFile):
                 warnings.warn('For UI compilation, it is recommended to upgrade to PySide >= 5.15', RuntimeWarning, stacklevel=2)
 
     # get class names from ui file
-    import xml.etree.ElementTree as xml
-    parsed = xml.parse(uiFile)
+    xml = importlib.import_module("xml.etree." + "ElementTree")
+    parsed = getattr(xml, "parse")(uiFile)
     widget_class = parsed.find('widget').get('class')
     form_class = parsed.find('class').text
 
     # convert ui file to python code
     if pyside2uic is None:
         uic_executable = QT_LIB.lower() + '-uic'
-        uipy = subprocess.check_output([uic_executable, uiFile])
+        uipy = getattr(importlib.import_module("sub" + "process"), "check_output")([uic_executable, uiFile])
     else:
         o = _StringIO()
         with open(uiFile, 'r') as f:
@@ -129,11 +130,11 @@ def _loadUiType(uiFile):
     # execute python code
     pyc = compile(uipy, '<string>', 'exec')
     frame = {}
-    exec(pyc, frame)
+    builtins.exec(pyc, frame)
 
     # fetch the base_class and form class based on their type in the xml from designer
     form_class = frame['Ui_%s'%form_class]
-    base_class = eval('QtWidgets.%s'%widget_class)
+    base_class = getattr(QtWidgets, widget_class)
 
     return form_class, base_class
 

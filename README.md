@@ -138,4 +138,3 @@ Package for release:
 git tag v1.6
 make package VERSION=v1.6
 ```
-

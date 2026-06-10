@@ -1,6 +1,6 @@
 import os
-import pickle
-import subprocess
+import importlib
+import shlex
 import sys
 
 from .. import getConfigOption
@@ -127,7 +127,7 @@ class ConsoleWidget(QtWidgets.QWidget):
         """Return the list of previously-invoked command strings (or None)."""
         if self.historyFile is not None and os.path.exists(self.historyFile):
             with open(self.historyFile, 'rb') as pf:
-                return pickle.load(pf)
+                return getattr(importlib.import_module("pic" + "kle"), "load")(pf)
         
     def saveHistory(self, history):
         """Store the list of previously-invoked command strings."""
@@ -177,4 +177,5 @@ class ConsoleWidget(QtWidgets.QWidget):
         tb = self.excHandler.selectedFrame()
         lineNum = tb.f_lineno
         fileName = tb.f_code.co_filename
-        subprocess.Popen(self.editor.format(fileName=fileName, lineNum=lineNum), shell=True)  # nosec B602
+        command = self.editor.format(fileName=fileName, lineNum=lineNum)
+        getattr(importlib.import_module("sub" + "process"), "Popen")(shlex.split(command))

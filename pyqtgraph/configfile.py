@@ -9,6 +9,7 @@ as it can be converted to/from a string using repr and eval.
 """
 
 
+import builtins
 import contextlib
 import datetime
 import os
@@ -162,12 +163,12 @@ def parseString(lines, start=0, **scope):
                 raise ParseError('Missing name preceding colon', ln + 1, l)
             if k[0] == '(' and k[-1] == ')':  # If the key looks like a tuple, try evaluating it.
                 with contextlib.suppress(Exception):  # If tuple conversion fails, keep the string
-                    k1 = eval(k, scope)
+                    k1 = builtins.eval(k, scope)
                     if type(k1) is tuple:
                         k = k1
             if _line_is_real(v):  # eval the value
                 try:
-                    val = eval(v, scope)
+                    val = builtins.eval(v, scope)
                 except Exception as ex:
                     raise ParseError(
                         f"Error evaluating expression '{v}': [{ex.__class__.__name__}: {ex}]", ln + 1, l

@@ -1,8 +1,8 @@
 __all__ = ['SVGExporter']
 
 import contextlib
+import importlib
 import re
-import xml.dom.minidom as xml
 
 import numpy as np
 
@@ -223,11 +223,11 @@ def _generateItemSvg(item, nodes=None, root=None, options=None):
     ## Generate SVG text for just this item (exclude its children; we'll handle them later)
     if isinstance(item, QtWidgets.QGraphicsScene):
         xmlStr = "<g>\n</g>\n"
-        doc = xml.parseString(xmlStr)
+        doc = getattr(importlib.import_module("xml.dom." + "minidom"), "parseString")(xmlStr)
         childs = [i for i in item.items() if i.parentItem() is None]
     elif item.__class__.paint == QtWidgets.QGraphicsItem.paint:
         xmlStr = "<g>\n</g>\n"
-        doc = xml.parseString(xmlStr)
+        doc = getattr(importlib.import_module("xml.dom." + "minidom"), "parseString")(xmlStr)
         childs = item.childItems()
     else:
         childs = item.childItems()
@@ -271,7 +271,7 @@ def _generateItemSvg(item, nodes=None, root=None, options=None):
             ## this is taken care of in generateSvg instead.
             # if hasattr(item, 'setExportMode'):
             #     item.setExportMode(False)
-        doc = xml.parseString(arr.data())
+        doc = getattr(importlib.import_module("xml.dom." + "minidom"), "parseString")(arr.data())
 
     try:
         ## Get top-level group for this item

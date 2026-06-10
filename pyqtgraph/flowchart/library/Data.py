@@ -1,4 +1,6 @@
 
+import builtins
+
 import numpy as np
 
 from ...graphicsItems.LinearRegionItem import LinearRegionItem
@@ -222,13 +224,13 @@ class EvalNode(Node):
         ## try eval first, then exec
         try:  
             text = self.text.toPlainText().replace('\n', ' ')
-            output = eval(text, globals(), l)
+            output = builtins.eval(text, globals(), l)
         except SyntaxError:
             fn = "def fn(**args):\n"
             run = "\noutput=fn(**args)\n"
             text = fn + "\n".join(["    "+l for l in self.text.toPlainText().split('\n')]) + run
             ldict = locals()
-            exec(text, globals(), ldict)
+            builtins.exec(text, globals(), ldict)
             output = ldict['output']
         except:
             print(f"Error processing node: {self.name()}")

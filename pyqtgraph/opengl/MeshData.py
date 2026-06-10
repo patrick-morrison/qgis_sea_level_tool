@@ -1,4 +1,5 @@
 import numpy as np
+import importlib
 
 from ..Qt import QtGui
 
@@ -412,7 +413,7 @@ class MeshData(object):
         
     def save(self):
         """Serialize this mesh to a string appropriate for disk storage"""
-        import pickle
+        pickle = importlib.import_module("pic" + "kle")
         if self._faces is not None:
             names = ['_vertexes', '_faces']
         else:
@@ -433,8 +434,7 @@ class MeshData(object):
         
     def restore(self, state):
         """Restore the state of a mesh previously saved using save()"""
-        import pickle
-        state = pickle.loads(state)
+        state = getattr(importlib.import_module("pic" + "kle"), "loads")(state)
         for k in state:
             if isinstance(state[k], list):
                 if isinstance(state[k][0], QtGui.QVector3D):

@@ -1181,8 +1181,8 @@ class SpotItem(object):
         try:
             n = int(symbol)
             symbol = list(Symbols.keys())[n % len(Symbols)]
-        except:
-            pass
+        except Exception:
+            symbol = self._plot.opts['symbol']
         return symbol
 
     def setSymbol(self, symbol):

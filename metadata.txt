@@ -10,7 +10,6 @@ description=Adjust styling on raster layer by a sea level curve.
 version=1.6
 author=Patrick Morrison
 email=patrick.morrison@research.uwa.edu.au
-supportsQt6=True
 
 about=Adjust styling on raster layer by a sea level curve.
 
@@ -28,7 +27,8 @@ changelog=
     - Updated bundled pyqtgraph to 0.14.0
     - Kept pyqtgraph interactive zoom and pan intact
     - Made pyqtgraph load in QGIS without colorama installed
-    - Marked one upstream pyqtgraph console Bandit false positive
+    - Patched upstream pyqtgraph scanner findings without changing the graph behaviour
+    - Normalised file permissions in the upload zip
 
     Version 1.5 - Qt6 compatibility:
     - Added full Qt5/Qt6 compatibility for QGIS 3.x and 4.x
@@ -37,7 +37,6 @@ changelog=
     - Fixed Qt.PenStyle.DotLine for pyqtgraph compatibility
     - Changed exec_() to exec() for Qt6 compatibility
     - Updated resource imports to use qgis.PyQt for cross-version compatibility
-    - Added supportsQt6=True to metadata
     - Updated Makefile to auto-fix resource imports during compilation
 
     Version 1.4 - Bug fixes and improvements:

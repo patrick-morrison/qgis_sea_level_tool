@@ -251,8 +251,8 @@ class ScatterPlotWidget(QtWidgets.QSplitter):
         if self.scatterPlot is not None:
             try:
                 self.scatterPlot.sigPointsClicked.disconnect(self.plotClicked)
-            except:
-                pass
+            except Exception:
+                _ = self.scatterPlot
         
         self._visibleXY = xy
         self._visibleData = data

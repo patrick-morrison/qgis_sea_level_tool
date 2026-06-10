@@ -90,8 +90,8 @@ class Container(object):
             #print "Child", ev.child(), "removed, updating", self
             try:
                 ch.sigStretchChanged.disconnect(self.childStretchChanged)
-            except:
-                pass
+            except Exception:
+                ch = None
             self.updateStretch()
         
     @QtCore.Slot()

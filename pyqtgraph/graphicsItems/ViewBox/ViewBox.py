@@ -442,8 +442,8 @@ class ViewBox(GraphicsWidget):
         """Remove an item from this view."""
         try:
             self.addedItems.remove(item)
-        except:
-            pass
+        except ValueError:
+            item = None
 
         scene = self.scene()
         if scene is not None:

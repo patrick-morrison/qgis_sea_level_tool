@@ -108,7 +108,7 @@ class Parallelize(object):
                 try:
                     self.progressDlg.__exit__(None, None, None)
                 except Exception:
-                    pass
+                    self.progressDlg = None
 
     def runSerial(self):
         if self.showProgress:

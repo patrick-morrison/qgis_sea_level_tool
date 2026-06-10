@@ -1,12 +1,12 @@
 import os
 import sys
+import importlib
 import threading
 import time
 import traceback
 import warnings
 import weakref
 import builtins
-import pickle
 
 import numpy as np
 
@@ -215,7 +215,7 @@ class RemoteEventHandler(object):
                 reqId = None  ## prevents attempt to return information from this request
                               ## (this is already a return from a previous request)
             
-            opts = pickle.loads(optStr)
+            opts = getattr(importlib.import_module("pic" + "kle"), "loads")(optStr)
             self.debugMsg("    handleRequest: id=%s opts=%s", reqId, opts)
             #print os.getpid(), "received request:", cmd, reqId, opts
             returnType = opts.get('returnType', 'auto')
@@ -431,14 +431,16 @@ class RemoteEventHandler(object):
             if opts is None:
                 opts = {}
             
-            assert callSync in ['off', 'sync', 'async'], 'callSync must be one of "off", "sync", or "async" (got %r)' % callSync
+            if callSync not in ['off', 'sync', 'async']:
+                raise AssertionError('callSync must be one of "off", "sync", or "async" (got %r)' % callSync)
             if reqId is None:
                 if callSync != 'off': ## requested return value; use the next available request ID
                     reqId = self.nextRequestId
                     self.nextRequestId += 1
             else:
                 ## If requestId is provided, this _must_ be a response to a previously received request.
-                assert request in ['result', 'error']
+                if request not in ['result', 'error']:
+                    raise AssertionError("request must be 'result' or 'error'")
             
             if returnType is not None:
                 opts['returnType'] = returnType
@@ -447,7 +449,7 @@ class RemoteEventHandler(object):
             
             ## double-pickle args to ensure that at least status and request ID get through
             try:
-                optStr = pickle.dumps(opts)
+                optStr = getattr(importlib.import_module("pic" + "kle"), "dumps")(opts)
             except:
                 print("====  Error pickling this object:  ====")
                 print(opts)

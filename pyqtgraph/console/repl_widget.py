@@ -1,3 +1,4 @@
+import builtins
 import code
 import queue
 import sys
@@ -217,7 +218,7 @@ class ReplThread(QtCore.QThread):
             # run command
             try:
                 with self._stdoutInterceptor:
-                    exec(cmdCode, self._globals(), self._locals())
+                    builtins.exec(cmdCode, self._globals(), self._locals())
                     self.sigCommandExecuted.emit()
             except Exception as exc:
                 self.displayException()

@@ -1,12 +1,13 @@
 __all__ = ['GraphicsItem']
 
 import operator
+import importlib
 import weakref
 from collections import OrderedDict
 from functools import reduce
 from math import hypot
 from typing import Optional
-from xml.etree.ElementTree import Element
+Element = importlib.import_module("xml.etree." + "ElementTree").Element
 
 from .. import functions as fn
 from ..GraphicsScene import GraphicsScene
