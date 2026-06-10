@@ -3,9 +3,9 @@ import functools
 import inspect
 import pydoc
 
-from . import Parameter
-from .parameterTypes import ActionGroup
 from .. import functions as fn
+from . import Parameter
+from .parameterTypes import ActionGroupParameter
 
 
 class PARAM_UNSET:
@@ -136,7 +136,7 @@ class InteractiveFunction:
             self.parameters[param.name()] = param
             param.sigValueChanged.connect(self.updateCachedParameterValues)
             # Populate initial values
-            self.parameterCache[param.name()] = param.value()
+            self.parameterCache[param.name()] = param.value() if param.hasValue() else None
 
     def removeParameters(self, clearCache=True):
         """
@@ -192,12 +192,12 @@ class InteractiveFunction:
         return oldDisconnect
 
     def __str__(self):
-        return f"InteractiveFunction(`<{self.function.__name__}>`) at {hex(id(self))}"
+        return f"{type(self).__name__}(`<{self.function.__name__}>`) at {hex(id(self))}"
 
     def __repr__(self):
         return (
             str(self) + " with keys:\n"
-            f"params={list(self.parameters)}, "
+            f"parameters={list(self.parameters)}, "
             f"extra={list(self.extra)}, "
             f"closures={list(self.closures)}"
         )
@@ -342,9 +342,7 @@ class Interactor:
         # Get every overridden default
         locs = locals()
         # Everything until action template
-        opts = {
-            kk: locs[kk] for kk in self._optionNames if locs[kk] is not PARAM_UNSET
-        }
+        opts = {kk: locs[kk] for kk in self._optionNames if locs[kk] is not PARAM_UNSET}
         oldOpts = self.setOpts(**opts)
         # Delete explicitly since correct values are now ``self`` attributes
         del runOptions, titleFormat, nest, existOk, parent, runActionTemplate
@@ -390,7 +388,8 @@ class Interactor:
         for name in checkNames:
             childOpts = children[chNames.index(name)]
             child = self.resolveAndHookupParameterChild(funcGroup, childOpts, function)
-            useParams.append(child)
+            if child is not None:
+                useParams.append(child)
 
         function.hookupParameters(useParams)
         if RunOptions.ON_ACTION in self.runOptions:
@@ -458,9 +457,9 @@ class Interactor:
         funcGroup = self.parent
         if self.nest:
             funcGroup = Parameter.create(**functionDict)
-            funcGroup.sigActivated.connect(interactiveFunction.runFromAction)
             if self.parent:
-                self.parent.addChild(funcGroup, existOk=self.existOk)
+                funcGroup = self.parent.addChild(funcGroup, existOk=self.existOk)
+            funcGroup.sigActivated.connect(interactiveFunction.runFromAction)
         return funcGroup
 
     @staticmethod
@@ -494,7 +493,7 @@ class Interactor:
         return child
 
     def _resolveRunAction(self, interactiveFunction, functionGroup, functionTip):
-        if isinstance(functionGroup, ActionGroup):
+        if isinstance(functionGroup, ActionGroupParameter):
             functionGroup.setButtonOpts(visible=True)
             child = None
         else:
@@ -591,7 +590,11 @@ class Interactor:
             # directly from the default Also, maybe override was a value without a
             # type, so give a sensible default
             default = signatureParameter.default
-            signatureDict = {"value": default, "type": type(default).__name__}
+            signatureDict = {
+                "value": default,
+                "default": default,
+                "type": type(default).__name__
+            }
         else:
             signatureDict = {}
         # Doc takes precedence over signature for any value information
@@ -605,12 +608,17 @@ class Interactor:
         pgDict["name"] = name
         # Required function arguments with any override specifications can still be
         # unfilled at this point
-        pgDict.setdefault("value", PARAM_UNSET)
+        if "value" not in pgDict:
+            if "default" in pgDict:
+                pgDict["value"] = pgDict["default"]
+            else:
+                pgDict["value"] = PARAM_UNSET
+        pgDict.setdefault("default", pgDict["value"])
 
         # Anywhere a title is specified should take precedence over the default factory
         if self.titleFormat is not None:
             pgDict.setdefault("title", self._nameToTitle(name))
-        pgDict.setdefault("type", type(pgDict["value"]).__name__)
+        pgDict.setdefault("type", type(pgDict["default"]).__name__)
         return pgDict
 
     def __str__(self):

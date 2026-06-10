@@ -19,21 +19,17 @@ class ViewBoxMenu(QtWidgets.QMenu):
         self.viewAll.triggered.connect(self.autoRange)
         self.addAction(self.viewAll)
         
-        self.axes = []
         self.ctrl = []
         self.widgetGroups = []
         self.dv = QtGui.QDoubleValidator(self)
         for axis in 'XY':
-            m = QtWidgets.QMenu()
-            m.setTitle(f"{axis} {translate('ViewBox', 'axis')}")
+            m = self.addMenu(f"{axis} {translate('ViewBox', 'axis')}")
             w = QtWidgets.QWidget()
             ui = ui_template.Ui_Form()
             ui.setupUi(w)
             a = QtWidgets.QWidgetAction(self)
             a.setDefaultWidget(w)
             m.addAction(a)
-            self.addMenu(m)
-            self.axes.append(m)
             self.ctrl.append(ui)
             wg = WidgetGroup(w)
             self.widgetGroups.append(wg)
@@ -55,43 +51,25 @@ class ViewBoxMenu(QtWidgets.QMenu):
 
         self.ctrl[0].invertCheck.toggled.connect(self.xInvertToggled)
         self.ctrl[1].invertCheck.toggled.connect(self.yInvertToggled)
-        ## exporting is handled by GraphicsScene now
-        #self.export = QtWidgets.QMenu("Export")
-        #self.setExportMethods(view.exportMethods)
-        #self.addMenu(self.export)
         
-        self.leftMenu = QtWidgets.QMenu(translate("ViewBox", "Mouse Mode"))
+        leftMenu = self.addMenu(translate("ViewBox", "Mouse Mode"))
+
         group = QtGui.QActionGroup(self)
-        
-        # This does not work! QAction _must_ be initialized with a permanent 
-        # object as the parent or else it may be collected prematurely.
-        #pan = self.leftMenu.addAction("3 button", self.set3ButtonMode)
-        #zoom = self.leftMenu.addAction("1 button", self.set1ButtonMode)
-        pan = QtGui.QAction(translate("ViewBox", "3 button"), self.leftMenu)
-        zoom = QtGui.QAction(translate("ViewBox", "1 button"), self.leftMenu)
-        self.leftMenu.addAction(pan)
-        self.leftMenu.addAction(zoom)
-        pan.triggered.connect(self.set3ButtonMode)
-        zoom.triggered.connect(self.set1ButtonMode)
-        
+        group.triggered.connect(self.setMouseMode)
+        pan = QtGui.QAction(translate("ViewBox", "3 button"), group)
+        zoom = QtGui.QAction(translate("ViewBox", "1 button"), group)
         pan.setCheckable(True)
         zoom.setCheckable(True)
-        pan.setActionGroup(group)
-        zoom.setActionGroup(group)
+
+        leftMenu.addActions(group.actions())
+
         self.mouseModes = [pan, zoom]
-        self.addMenu(self.leftMenu)
         
         self.view().sigStateChanged.connect(self.viewStateChanged)
         
         self.updateState()
 
-    def setExportMethods(self, methods):
-        self.exportMethods = methods
-        self.export.clear()
-        for opt, fn in methods.items():
-            self.export.addAction(opt, self.exportMethod)
-        
-
+    @QtCore.Slot()
     def viewStateChanged(self):
         self.valid = False
         if self.ctrl[0].minText.isVisible() or self.ctrl[1].minText.isVisible():
@@ -146,79 +124,98 @@ class ViewBoxMenu(QtWidgets.QMenu):
             self.updateState()
         QtWidgets.QMenu.popup(self, *args)
         
+    @QtCore.Slot()
     def autoRange(self):
         self.view().autoRange()  ## don't let signal call this directly--it'll add an unwanted argument
 
+    @QtCore.Slot(bool)
     def xMouseToggled(self, b):
         self.view().setMouseEnabled(x=b)
 
+    @QtCore.Slot()
     def xManualClicked(self):
         self.view().enableAutoRange(ViewBox.XAxis, False)
         
+    @QtCore.Slot()
     def xRangeTextChanged(self):
         self.ctrl[0].manualRadio.setChecked(True)
         self.view().setXRange(*self._validateRangeText(0), padding=0)
 
+    @QtCore.Slot()
     def xAutoClicked(self):
         val = self.ctrl[0].autoPercentSpin.value() * 0.01
         self.view().enableAutoRange(ViewBox.XAxis, val)
         
+    @QtCore.Slot(int)
     def xAutoSpinChanged(self, val):
         self.ctrl[0].autoRadio.setChecked(True)
         self.view().enableAutoRange(ViewBox.XAxis, val*0.01)
 
+    @QtCore.Slot(int)
     def xLinkComboChanged(self, ind):
         self.view().setXLink(str(self.ctrl[0].linkCombo.currentText()))
 
+    @QtCore.Slot(bool)
     def xAutoPanToggled(self, b):
         self.view().setAutoPan(x=b)
     
+    @QtCore.Slot(bool)
     def xVisibleOnlyToggled(self, b):
         self.view().setAutoVisible(x=b)
 
 
+    @QtCore.Slot(bool)
     def yMouseToggled(self, b):
         self.view().setMouseEnabled(y=b)
 
+    @QtCore.Slot()
     def yManualClicked(self):
         self.view().enableAutoRange(ViewBox.YAxis, False)
         
+    @QtCore.Slot()
     def yRangeTextChanged(self):
         self.ctrl[1].manualRadio.setChecked(True)
         self.view().setYRange(*self._validateRangeText(1), padding=0)
         
+    @QtCore.Slot()
     def yAutoClicked(self):
         val = self.ctrl[1].autoPercentSpin.value() * 0.01
         self.view().enableAutoRange(ViewBox.YAxis, val)
         
+    @QtCore.Slot(int)
     def yAutoSpinChanged(self, val):
         self.ctrl[1].autoRadio.setChecked(True)
         self.view().enableAutoRange(ViewBox.YAxis, val*0.01)
 
+    @QtCore.Slot(int)
     def yLinkComboChanged(self, ind):
         self.view().setYLink(str(self.ctrl[1].linkCombo.currentText()))
 
+    @QtCore.Slot(bool)
     def yAutoPanToggled(self, b):
         self.view().setAutoPan(y=b)
     
+    @QtCore.Slot(bool)
     def yVisibleOnlyToggled(self, b):
         self.view().setAutoVisible(y=b)
 
+    @QtCore.Slot(bool)
     def yInvertToggled(self, b):
         self.view().invertY(b)
 
+    @QtCore.Slot(bool)
     def xInvertToggled(self, b):
         self.view().invertX(b)
 
-    def exportMethod(self):
-        act = self.sender()
-        self.exportMethods[str(act.text())]()
-
-    def set3ButtonMode(self):
-        self.view().setLeftButtonAction('pan')
-        
-    def set1ButtonMode(self):
-        self.view().setLeftButtonAction('rect')
+    @QtCore.Slot(QtGui.QAction)
+    def setMouseMode(self, action):
+        mode = None
+        if action == self.mouseModes[0]:
+            mode = 'pan'
+        elif action == self.mouseModes[1]:
+            mode = 'rect'
+        if mode is not None:
+            self.view().setLeftButtonAction(mode)
         
     def setViewList(self, views):
         names = ['']

@@ -1,53 +1,37 @@
-from OpenGL.GL import *  # noqa
-import OpenGL.GL.framebufferobjects as glfbo  # noqa
 from math import cos, radians, sin, tan
+import importlib
+import warnings
 
+from OpenGL import GL
 import numpy as np
 
 from .. import Vector
 from .. import functions as fn
 from .. import getConfigOption
-from ..Qt import QtCore, QtGui, QtWidgets
+from ..Qt import QtCore, QtGui, QtWidgets, QT_LIB
 
-##Vector = QtGui.QVector3D
+if QT_LIB in ["PyQt5", "PySide2"]:
+    QtOpenGL = QtGui
+else:
+    QtOpenGL = importlib.import_module(f"{QT_LIB}.QtOpenGL")
 
-
-class GLViewWidget(QtWidgets.QOpenGLWidget):
-    
-    def __init__(self, parent=None, devicePixelRatio=None, rotationMethod='euler'):
-        """    
-        Basic widget for displaying 3D data
-          - Rotation/scale controls
-          - Axis/grid display
-          - Export options
+class GLViewMixin:
+    def __init__(self, *args, rotationMethod='euler', **kwargs):
+        """
+        Mixin class providing functionality for GLViewWidget
 
         ================ ==============================================================
         **Arguments:**
-        parent           (QObject, optional): Parent QObject. Defaults to None.
-        devicePixelRatio No longer in use. High-DPI displays should automatically
-                         detect the correct resolution.
-        rotationMethod   (str): Mechanimsm to drive the rotation method, options are 
+        rotationMethod   (str): Mechanism to drive the rotation method, options are
                          'euler' and 'quaternion'. Defaults to 'euler'.
         ================ ==============================================================
         """
-
-        QtWidgets.QOpenGLWidget.__init__(self, parent)
-        
-        self.setFocusPolicy(QtCore.Qt.FocusPolicy.ClickFocus)
+        super().__init__(*args, **kwargs)
 
         if rotationMethod not in ["euler", "quaternion"]:
             raise ValueError("Rotation method should be either 'euler' or 'quaternion'")
         
         self.opts = {
-            'center': Vector(0,0,0),  ## will always appear at the center of the widget
-            'rotation' : QtGui.QQuaternion(1,0,0,0), ## camera rotation (quaternion:wxyz)
-            'distance': 10.0,         ## distance of camera from center
-            'fov':  60,               ## horizontal field of view in degrees
-            'elevation': 30,          ## camera's angle of elevation in degrees
-            'azimuth': 45,            ## camera's azimuthal angle in degrees 	
-                                      ## (rotation around z-axis 0 points along x-axis)	
-            'viewport': None,         ## glViewport params; None == whole widget
-                                      ## note that 'viewport' is in device pixels
             'rotationMethod': rotationMethod
         }
         self.reset()
@@ -58,21 +42,10 @@ class GLViewWidget(QtWidgets.QOpenGLWidget):
         self.keyTimer = QtCore.QTimer()
         self.keyTimer.timeout.connect(self.evalKeyState)
 
-    def _updateScreen(self, screen):
-        self._updatePixelRatio()
-        if screen is not None:
-            screen.physicalDotsPerInchChanged.connect(self._updatePixelRatio)
-            screen.logicalDotsPerInchChanged.connect(self._updatePixelRatio)
-    
-    def _updatePixelRatio(self):
-        event = QtGui.QResizeEvent(self.size(), self.size())
-        self.resizeEvent(event)
-    
-    def showEvent(self, event):
-        window = self.window().windowHandle()
-        window.screenChanged.connect(self._updateScreen)
-        self._updateScreen(window.screen())
-        
+        self._modelViewStack = []
+        self._projectionStack = []
+        self.default_vao = QtOpenGL.QOpenGLVertexArrayObject(self)
+
     def deviceWidth(self):
         dpr = self.devicePixelRatioF()
         return int(self.width() * dpr)
@@ -88,10 +61,14 @@ class GLViewWidget(QtWidgets.QOpenGLWidget):
         self.opts['center'] = Vector(0,0,0)  ## will always appear at the center of the widget
         self.opts['distance'] = 10.0         ## distance of camera from center
         self.opts['fov'] = 60                ## horizontal field of view in degrees
-        self.opts['elevation'] = 30          ## camera's angle of elevation in degrees
-        self.opts['azimuth'] = 45            ## camera's azimuthal angle in degrees 
+
+        if self.opts['rotationMethod'] == 'quaternion':
+            self.opts['rotation'] = QtGui.QQuaternion(1,0,0,0)  ## camera rotation (quaternion:wxyz)
+        else:
+            self.opts['elevation'] = 30      ## camera's angle of elevation in degrees
+            self.opts['azimuth'] = 45        ## camera's azimuthal angle in degrees
                                              ## (rotation around z-axis 0 points along x-axis)
-        self.opts['viewport'] = None         ## glViewport params; None == whole widget
+
         self.setBackgroundColor(getConfigOption('background'))
 
     def addItem(self, item):
@@ -126,11 +103,24 @@ class GLViewWidget(QtWidgets.QOpenGLWidget):
         """
         ctx = self.context()
         fmt = ctx.format()
-        if ctx.isOpenGLES() or fmt.version() < (2, 0):
-            verString = glGetString(GL_VERSION)
-            raise RuntimeError(
-                "pyqtgraph.opengl: Requires >= OpenGL 2.0 (not ES); Found %s" % verString
+        if ctx.isOpenGLES():
+            warnings.warn(
+                f"pyqtgraph.opengl is primarily tested against OpenGL Desktop"
+                f" but OpenGL {fmt.version()} ES detected",
+                RuntimeWarning,
+                stacklevel=2
             )
+        elif fmt.version() < (2, 1):
+            verString = GL.glGetString(GL.GL_VERSION)
+            raise RuntimeError(
+                "pyqtgraph.opengl: Requires >= OpenGL 2.1; Found %s" % verString
+            )
+
+        # Core profile requires a non-default VAO
+        if fmt.profile() == QtGui.QSurfaceFormat.OpenGLContextProfile.CoreProfile:
+            if not self.default_vao.isCreated():
+                self.default_vao.create()
+                self.default_vao.bind()
 
         for item in self.items:
             if not item.isInitialized():
@@ -145,22 +135,15 @@ class GLViewWidget(QtWidgets.QOpenGLWidget):
         self.update()
         
     def getViewport(self):
-        vp = self.opts['viewport']
-        if vp is None:
-            return (0, 0, self.deviceWidth(), self.deviceHeight())
-        else:
-            return vp
+        return (0, 0, self.width(), self.height())
         
-    def setProjection(self, region=None):
-        m = self.projectionMatrix(region)
-        glMatrixMode(GL_PROJECTION)
-        glLoadMatrixf(np.array(m.data(), dtype=np.float32))
+    def setProjection(self, region, viewport):
+        m = self.projectionMatrix(region, viewport)
+        self._projectionStack.clear()
+        self._projectionStack.append(m)
 
-    def projectionMatrix(self, region=None):
-        if region is None:
-            region = (0, 0, self.deviceWidth(), self.deviceHeight())
-        
-        x0, y0, w, h = self.getViewport()
+    def projectionMatrix(self, region, viewport):
+        x0, y0, w, h = viewport
         dist = self.opts['distance']
         fov = self.opts['fov']
         nearClip = dist * 0.001
@@ -181,8 +164,8 @@ class GLViewWidget(QtWidgets.QOpenGLWidget):
         
     def setModelview(self):
         m = self.viewMatrix()
-        glMatrixMode(GL_MODELVIEW)
-        glLoadMatrixf(np.array(m.data(), dtype=np.float32))
+        self._modelViewStack.clear()
+        self._modelViewStack.append(m)
         
     def viewMatrix(self):
         tr = QtGui.QMatrix4x4()
@@ -197,44 +180,52 @@ class GLViewWidget(QtWidgets.QOpenGLWidget):
         tr.translate(-center.x(), -center.y(), -center.z())
         return tr
 
+    def currentModelView(self):
+        return self._modelViewStack[-1]
+
+    def currentProjection(self):
+        return self._projectionStack[-1]
+
     def itemsAt(self, region=None):
         """
         Return a list of the items displayed in the region (x, y, w, h)
         relative to the widget.        
         """
-        region = (region[0], self.deviceHeight()-(region[1]+region[3]), region[2], region[3])
+        region = (region[0], self.height()-(region[1]+region[3]), region[2], region[3])
+        viewport = self.getViewport()
         
         #buf = np.zeros(100000, dtype=np.uint)
-        buf = glSelectBuffer(100000)
+        buf = GL.glSelectBuffer(100000)
         try:
-            glRenderMode(GL_SELECT)
-            glInitNames()
-            glPushName(0)
+            GL.glRenderMode(GL.GL_SELECT)
+            GL.glInitNames()
+            GL.glPushName(0)
             self._itemNames = {}
-            self.paintGL(region=region, useItemNames=True)
+            self.paint(region=region, viewport=viewport, useItemNames=True)
             
         finally:
-            hits = glRenderMode(GL_RENDER)
+            hits = GL.glRenderMode(GL.GL_RENDER)
             
         items = [(h.near, h.names[0]) for h in hits]
         items.sort(key=lambda i: i[0])
         return [self._itemNames[i[1]] for i in items]
     
-    def paintGL(self, region=None, viewport=None, useItemNames=False):
+    def paintGL(self):
+        # when called by Qt, glViewport has already been called
+        # with device pixel ratio taken of
+        region = self.getViewport()
+        self.paint(region=region, viewport=region)
+
+    def paint(self, *, region, viewport, useItemNames=False):
         """
-        viewport specifies the arguments to glViewport. If None, then we use self.opts['viewport']
-        region specifies the sub-region of self.opts['viewport'] that should be rendered.
-        Note that we may use viewport != self.opts['viewport'] when exporting.
+        It is caller's responsibility to call glViewport prior to calling this method.
+        region specifies the sub-region of viewport that should be rendered.
         """
-        if viewport is None:
-            glViewport(*self.getViewport())
-        else:
-            glViewport(*viewport)
-        self.setProjection(region=region)
+        self.setProjection(region, viewport)
         self.setModelview()
         bgcolor = self.opts['bgcolor']
-        glClearColor(*bgcolor)
-        glClear( GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT )
+        GL.glClearColor(*bgcolor)
+        GL.glClear( GL.GL_DEPTH_BUFFER_BIT | GL.GL_COLOR_BUFFER_BIT )
         self.drawItemTree(useItemNames=useItemNames)
         
     def drawItemTree(self, item=None, useItemNames=False):
@@ -249,29 +240,28 @@ class GLViewWidget(QtWidgets.QOpenGLWidget):
                 continue
             if i is item:
                 try:
-                    glPushAttrib(GL_ALL_ATTRIB_BITS)
                     if useItemNames:
-                        glLoadName(i._id)
+                        GL.glLoadName(i._id)
                         self._itemNames[i._id] = i
+
+                    # The GLGraphicsItem(s) making use of QPainter end
+                    # up indirectly unbinding the default VAO, so we
+                    # rebind it before each GLGraphicsItem.
+                    if self.default_vao.isCreated():
+                        self.default_vao.bind()
+
                     i.paint()
                 except:
                     from .. import debug
                     debug.printExc()
                     print("Error while drawing item %s." % str(item))
-                    
-                finally:
-                    glPopAttrib()
             else:
-                glMatrixMode(GL_MODELVIEW)
-                glPushMatrix()
+                self._modelViewStack.append(self.currentModelView() * i.transform())
                 try:
-                    tr = i.transform()
-                    glMultMatrixf(np.array(tr.data(), dtype=np.float32))
                     self.drawItemTree(i, useItemNames=useItemNames)
                 finally:
-                    glMatrixMode(GL_MODELVIEW)
-                    glPopMatrix()
-            
+                    self._modelViewStack.pop()
+
     def setCameraPosition(self, pos=None, distance=None, elevation=None, azimuth=None, rotation=None):
         if rotation is not None:
             # Alternatively, we could define that rotation overrides elevation and azimuth
@@ -338,7 +328,13 @@ class GLViewWidget(QtWidgets.QOpenGLWidget):
             self.opts['fov'] = kwds['fov']
 
     def cameraParams(self):
-        valid_keys = {'center', 'rotation', 'distance', 'fov', 'elevation', 'azimuth'}
+        valid_keys = ['center', 'distance', 'fov']
+
+        if self.opts['rotationMethod'] == 'quaternion':
+            valid_keys.append('rotation')
+        else:
+            valid_keys.extend(['elevation', 'azimuth'])
+
         return { k : self.opts[k] for k in valid_keys }
 
     def orbit(self, azim, elev):
@@ -432,13 +428,15 @@ class GLViewWidget(QtWidgets.QOpenGLWidget):
             dist = (pos-cam).length()
         xDist = dist * 2. * tan(0.5 * radians(self.opts['fov']))
         return xDist / self.width()
-        
+
     def mousePressEvent(self, ev):
         lpos = ev.position() if hasattr(ev, 'position') else ev.localPos()
         self.mousePos = lpos
-        
+
     def mouseMoveEvent(self, ev):
         lpos = ev.position() if hasattr(ev, 'position') else ev.localPos()
+        if not hasattr(self, 'mousePos'):
+            self.mousePos = lpos
         diff = lpos - self.mousePos
         self.mousePos = lpos
         
@@ -455,16 +453,6 @@ class GLViewWidget(QtWidgets.QOpenGLWidget):
         
     def mouseReleaseEvent(self, ev):
         pass
-        # Example item selection code:
-        #region = (ev.pos().x()-5, ev.pos().y()-5, 10, 10)
-        #print(self.itemsAt(region))
-        
-        ## debugging code: draw the picking region
-        #glViewport(*self.getViewport())
-        #glClear( GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT )
-        #region = (region[0], self.height()-(region[1]+region[3]), region[2], region[3])
-        #self.paintGL(region=region)
-        #self.swapBuffers()
         
     def wheelEvent(self, ev):
         delta = ev.angleDelta().x()
@@ -521,39 +509,21 @@ class GLViewWidget(QtWidgets.QOpenGLWidget):
         """
         return self.grabFramebuffer()
         
-    def renderToArray(self, size, format=GL_BGRA, type=GL_UNSIGNED_BYTE, textureSize=1024, padding=256):
+    def renderToArray(self, size, format=GL.GL_BGRA, type=GL.GL_UNSIGNED_BYTE, textureSize=1024, padding=256):
         w,h = map(int, size)
         
         self.makeCurrent()
-        tex = None
-        fb = None
-        depth_buf = None
+
+        texwidth = textureSize
+
+        fbo = QtOpenGL.QOpenGLFramebufferObject(texwidth, texwidth,
+                    QtOpenGL.QOpenGLFramebufferObject.Attachment.CombinedDepthStencil,
+                    GL.GL_TEXTURE_2D)
+
+        output = np.empty((h, w, 4), dtype=np.ubyte)
+        data = np.empty((texwidth, texwidth, 4), dtype=np.ubyte)
+
         try:
-            output = np.empty((h, w, 4), dtype=np.ubyte)
-            fb = glfbo.glGenFramebuffers(1)
-            glfbo.glBindFramebuffer(glfbo.GL_FRAMEBUFFER, fb )
-            
-            glEnable(GL_TEXTURE_2D)
-            tex = glGenTextures(1)
-            glBindTexture(GL_TEXTURE_2D, tex)
-            texwidth = textureSize
-            data = np.zeros((texwidth,texwidth,4), dtype=np.ubyte)
-            
-            ## Test texture dimensions first
-            glTexImage2D(GL_PROXY_TEXTURE_2D, 0, GL_RGBA, texwidth, texwidth, 0, GL_RGBA, GL_UNSIGNED_BYTE, None)
-            if glGetTexLevelParameteriv(GL_PROXY_TEXTURE_2D, 0, GL_TEXTURE_WIDTH) == 0:
-                raise RuntimeError("OpenGL failed to create 2D texture (%dx%d); too large for this hardware." % data.shape[:2])
-            ## create texture
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texwidth, texwidth, 0, GL_RGBA, GL_UNSIGNED_BYTE, data)
-
-            # Create depth buffer
-            depth_buf = glGenRenderbuffers(1)
-            glBindRenderbuffer(GL_RENDERBUFFER, depth_buf)
-            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, texwidth, texwidth)
-            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth_buf)
-
-            self.opts['viewport'] = (0, 0, w, h)  # viewport is the complete image; this ensures that paintGL(region=...)
-                                                  # is interpreted correctly.
             p2 = 2 * padding
             for x in range(-padding, w-padding, texwidth-p2):
                 for y in range(-padding, h-padding, texwidth-p2):
@@ -562,26 +532,37 @@ class GLViewWidget(QtWidgets.QOpenGLWidget):
                     w2 = x2-x
                     h2 = y2-y
                     
-                    ## render to texture
-                    glfbo.glFramebufferTexture2D(glfbo.GL_FRAMEBUFFER, glfbo.GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0)
+                    fbo.bind()
+                    GL.glViewport(0, 0, w2, h2)
+                    self.paint(region=(x, h-y-h2, w2, h2), viewport=(0, 0, w, h))  # only render sub-region
                     
-                    self.paintGL(region=(x, h-y-h2, w2, h2), viewport=(0, 0, w2, h2))  # only render sub-region
-                    glBindTexture(GL_TEXTURE_2D, tex) # fixes issue #366
-                    
-                    ## read texture back to array
-                    data = glGetTexImage(GL_TEXTURE_2D, 0, format, type)
-                    data = np.frombuffer(data, dtype=np.ubyte).reshape(texwidth,texwidth,4)[::-1, ...]
-                    output[y+padding:y2-padding, x+padding:x2-padding] = data[-(h2-padding):-padding, padding:w2-padding]
+                    fbo.bind()
+                    GL.glReadPixels(0, 0, texwidth, texwidth, format, type, data)
+                    data_yflip = data[::-1, ...]
+                    output[y+padding:y2-padding, x+padding:x2-padding] = data_yflip[-(h2-padding):-padding, padding:w2-padding]
                     
         finally:
-            self.opts['viewport'] = None
-            glfbo.glBindFramebuffer(glfbo.GL_FRAMEBUFFER, 0)
-            glBindTexture(GL_TEXTURE_2D, 0)
-            if tex is not None:
-                glDeleteTextures([tex])
-            if fb is not None:
-                glfbo.glDeleteFramebuffers([fb])
-            if depth_buf is not None:
-                glDeleteRenderbuffers(1, [depth_buf])
+            fbo.release()
 
         return output
+
+
+class GLViewWidget(GLViewMixin, QtWidgets.QOpenGLWidget):
+    def __init__(self, *args, devicePixelRatio=None, **kwargs):
+        """
+        Basic widget for displaying 3D data
+          - Rotation/scale controls
+          - Axis/grid display
+          - Export options
+
+        ================ ==============================================================
+        **Arguments:**
+        parent           (QObject, optional): Parent QObject. Defaults to None.
+        devicePixelRatio No longer in use. High-DPI displays should automatically
+                         detect the correct resolution.
+        rotationMethod   (str): Mechanism to drive the rotation method, options are
+                         'euler' and 'quaternion'. Defaults to 'euler'.
+        ================ ==============================================================
+        """
+        super().__init__(*args, **kwargs)
+        self.setFocusPolicy(QtCore.Qt.FocusPolicy.ClickFocus)

@@ -226,7 +226,7 @@ def makeHslCycle( hue=0.0, saturation=1.0, lightness=0.5, steps=36 ):
     lightness : float or tuple of floats, optional
         Lightness value for the colors in the cycle, in the range of [0 to 1]. 
         If a (start, end) tuple is given, lightness gradually changes between these values.
-        The default lightness is 1.0.
+        The default lightness is 0.5.
     steps: int, optional
         Number of steps in the cycle. Between these steps, the color map will interpolate in RGB space.
         The default number of steps is 36, generating a color map with 37 stops.
@@ -622,7 +622,7 @@ class ColorMap(object):
 
     def getByIndex(self, idx):
         """Retrieve a QColor by the index of the stop it is assigned to."""
-        return QtGui.QColor( *self.color[idx] )
+        return QtGui.QColor.fromRgbF( *self.color[idx] )
 
     def getGradient(self, p1=None, p2=None):
         """

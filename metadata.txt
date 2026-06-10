@@ -7,7 +7,7 @@ name=SeaLevelTool
 qgisMinimumVersion=3.0
 qgisMaximumVersion=4.99
 description=Adjust styling on raster layer by a sea level curve.
-version=1.5
+version=1.6
 author=Patrick Morrison
 email=patrick.morrison@research.uwa.edu.au
 supportsQt6=True
@@ -21,8 +21,15 @@ repository=https://github.com/patrick-morrison/qgis_sea_level_tool
 # Recommended items:
 
 hasProcessingProvider=yes
-# Changelog for version 1.5:
+# Changelog for version 1.6:
 changelog=
+    Version 1.6 - QGIS upload fixes:
+    - Removed plugin_upload.py and dev-only files from the upload zip
+    - Updated bundled pyqtgraph to 0.14.0
+    - Kept pyqtgraph interactive zoom and pan intact
+    - Made pyqtgraph load in QGIS without colorama installed
+    - Marked one upstream pyqtgraph console Bandit false positive
+
     Version 1.5 - Qt6 compatibility:
     - Added full Qt5/Qt6 compatibility for QGIS 3.x and 4.x
     - Updated Qt enums to use namespaced format (Qt.DockWidgetArea.BottomDockWidgetArea, etc.)
@@ -65,4 +72,3 @@ Category of the plugin: Raster, Vector, Database or Web
 
 # If the plugin can run on QGIS Server.
 server=False
-

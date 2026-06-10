@@ -1,13 +1,12 @@
-from ..Qt import QtGui, QtWidgets
+from ..Qt import QtCore, QtGui, QtWidgets
 from .GraphicsItem import GraphicsItem
+from ..GraphicsScene.GraphicsScene import GraphicsScene
+from typing import TYPE_CHECKING
 
 __all__ = ['GraphicsWidget']
 
 
 class GraphicsWidget(GraphicsItem, QtWidgets.QGraphicsWidget):
-    
-    _qtBaseClass = QtWidgets.QGraphicsWidget
-
     def __init__(self, *args, **kwargs):
         """
         **Bases:** :class:`GraphicsItem <pyqtgraph.GraphicsItem>`, :class:`QtWidgets.QGraphicsWidget`
@@ -25,7 +24,8 @@ class GraphicsWidget(GraphicsItem, QtWidgets.QGraphicsWidget):
 
         # done by GraphicsItem init
         # GraphicsScene.registerObject(self)  # workaround for pyqt bug in GraphicsScene.items()
-
+    if TYPE_CHECKING:
+        def scene(self) -> GraphicsScene: ...
     # Removed due to https://bugreports.qt-project.org/browse/PYSIDE-86
     # def itemChange(self, change, value):
     #     # BEWARE: Calling QGraphicsWidget.itemChange can lead to crashing!
@@ -37,6 +37,7 @@ class GraphicsWidget(GraphicsItem, QtWidgets.QGraphicsWidget):
     #         self._updateView()
     #     return ret
 
+    @QtCore.Slot()
     def _resetCachedProperties(self):
         self._boundingRectCache = self._previousGeometry = None
         self._painterPathCache = None
@@ -64,7 +65,7 @@ class GraphicsWidget(GraphicsItem, QtWidgets.QGraphicsWidget):
             self._previousGeometry = geometry
         else:
             br = self._boundingRectCache
-        return br
+        return QtCore.QRectF(br)
 
     def shape(self):
         p = self._painterPathCache

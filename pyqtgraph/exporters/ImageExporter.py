@@ -26,14 +26,39 @@ class ImageExporter(Exporter):
         if bgbrush.style() == QtCore.Qt.BrushStyle.NoBrush:
             bg.setAlpha(0)
 
-        self.params = Parameter(name='params', type='group', children=[
-            {'name': 'width', 'title': translate("Exporter", 'width'), 'type': 'int', 'value': int(tr.width()),
-             'limits': (0, None)},
-            {'name': 'height', 'title': translate("Exporter", 'height'), 'type': 'int', 'value': int(tr.height()),
-             'limits': (0, None)},
-            {'name': 'antialias', 'title': translate("Exporter", 'antialias'), 'type': 'bool', 'value': True},
-            {'name': 'background', 'title': translate("Exporter", 'background'), 'type': 'color', 'value': bg},
-            {'name': 'invertValue', 'title': translate("Exporter", 'invertValue'), 'type': 'bool', 'value': False}
+        self.params = Parameter.create(name='params', type='group', children=[
+            {
+                'name': 'width',
+                'title': translate("Exporter", 'width'),
+                'type': 'int',
+                'value': int(tr.width()),
+                'limits': (0, None)
+            },
+            {
+                'name': 'height',
+                'title': translate("Exporter", 'height'),
+                'type': 'int',
+                'value': int(tr.height()),
+                'limits': (0, None)
+            },
+            {
+                'name': 'antialias',
+                'title': translate("Exporter", 'antialias'),
+                'type': 'bool',
+                'value': True
+            },
+            {
+                'name': 'background',
+                'title': translate("Exporter", 'background'),
+                'type': 'color',
+                'value': bg
+            },
+            {
+                'name': 'invertValue',
+                'title': translate("Exporter", 'invertValue'),
+                'type': 'bool',
+                'value': False
+            }
         ])
         self.params.param('width').sigValueChanged.connect(self.widthChanged)
         self.params.param('height').sigValueChanged.connect(self.heightChanged)

@@ -4,8 +4,6 @@ Copyright 2010  Luke Campagnola
 Distributed under MIT/X11 license. See license.txt for more information.
 """
 
-from __future__ import division
-
 import decimal
 import math
 import re
@@ -14,13 +12,13 @@ import sys
 import warnings
 from collections import OrderedDict
 
+from typing import TypeAlias, TypedDict
+
 import numpy as np
 
 from . import Qt, debug, getConfigOption, reload
-from .metaarray import MetaArray
 from .Qt import QT_LIB, QtCore, QtGui
 from .util.cupy_helper import getCupy
-from .util.numba_helper import getNumbaFunctions
 
 # in order of appearance in this file.
 # add new functions to this list only if they are to reside in pg namespace.
@@ -36,7 +34,7 @@ __all__ = [
     'solve3DTransform', 'solveBilinearTransform',
     'clip_scalar', 'clip_array', 'rescaleData', 'applyLookupTable',
     'makeRGBA', 'makeARGB',
-    # 'try_fastpath_argb', 'ndarray_to_qimage',
+    # 'ndarray_to_qimage',
     'makeQImage',
     # 'ndarray_from_qimage',
     'imageToArray', 'colorToAlpha',
@@ -66,18 +64,65 @@ SI_PREFIXES_ASCII = 'yzafpnum kMGTPEZY'
 SI_PREFIX_EXPONENTS = dict([(SI_PREFIXES[i], (i-8)*3) for i in range(len(SI_PREFIXES))])
 SI_PREFIX_EXPONENTS['u'] = -6
 
-FLOAT_REGEX = re.compile(r'(?P<number>[+-]?((((\d+(\.\d*)?)|(\d*\.\d+))([eE][+-]?\d+)?)|((?i:nan)|(inf))))\s*((?P<siPrefix>[u' + SI_PREFIXES + r']?)(?P<suffix>\w.*))?$')
+#For comma as decimal separator
+FLOAT_REGEX_COMMA = re.compile(r'(?P<number>[+-]?((((\d+(,\d*)?)|(\d*,\d+))([eE][+-]?\d+)?)|((?i:nan)|(inf))))\s*((?P<siPrefix>[u' + SI_PREFIXES + r']?)(?P<suffix>\w.*))?$')
+#For period as decimal separator
+FLOAT_REGEX_PERIOD = re.compile(r'(?P<number>[+-]?((((\d+(\.\d*)?)|(\d*\.\d+))([eE][+-]?\d+)?)|((?i:nan)|(inf))))\s*((?P<siPrefix>[u' + SI_PREFIXES + r']?)(?P<suffix>\w.*))?$')
+
 INT_REGEX = re.compile(r'(?P<number>[+-]?\d+)\s*(?P<siPrefix>[u' + SI_PREFIXES + r']?)(?P<suffix>.*)$')
 
-    
-def siScale(x, minVal=1e-25, allowUnicode=True):
+class HueKeywordArgs(TypedDict):
+    hues: int
+    values: int
+    maxValue: int
+    minValue: int
+    maxHue: int
+    minHue: int
+    sat: int
+    alpha: int
+
+color_like: TypeAlias = (
+    QtGui.QColor 
+    | str 
+    | float
+    | int
+    | tuple[int, int, int]
+    | tuple[int, int, int, int]
+    | tuple[float, float, float]
+    | tuple[float, float, float, float]
+    | tuple[int, HueKeywordArgs]
+)
+
+
+def siScale(x, minVal=1e-25, allowUnicode=True, power:int|float=1):
     """
     Return the recommended scale factor and SI prefix string for x.
-    
-    Example::
-    
-        siScale(0.0001)   # returns (1e6, 'μ')
-        # This indicates that the number 0.0001 is best represented as 0.0001 * 1e6 = 100 μUnits
+
+    Parameters
+    ----------
+    x : float
+        The value to be scaled.
+    minVal : float, optional
+        The minimum value considered for scaling. Default is 1e-25.
+    allowUnicode : bool, optional
+        Whether to allow Unicode SI prefixes. Default is True.
+    power : int or float, optional
+        The power to which the units are raised. For example, if units='m²', the
+        power should be 2. This ensures correct scaling of the prefix in 
+        nonlinear units. Supports positive, negative and non-integral powers. 
+
+    Returns
+    -------
+    scale : float
+        The scale factor to apply to x.
+    prefix : str
+        The SI prefix string.
+
+    Examples
+    --------
+    >>> siScale(0.0001)
+    (1000000.0, 'μ')
+    # This indicates that the number 0.0001 is best represented as 0.0001 * 1e6 = 100 μUnits
     """
     
     if isinstance(x, decimal.Decimal):
@@ -90,7 +135,13 @@ def siScale(x, minVal=1e-25, allowUnicode=True):
     if abs(x) < minVal:
         m = 0
     else:
-        m = int(clip_scalar(math.floor(math.log(abs(x))/math.log(1000)), -9.0, 9.0))
+        # log of x with base 1000^power
+        log1000x = math.log(abs(x))/(math.log(1000)*power)
+        if power > 0:
+            log1000x = math.floor(log1000x)
+        else:
+            log1000x = math.ceil(log1000x)
+        m = int(clip_scalar(log1000x, -9.0, 9.0))
     if m == 0:
         pref = ''
     elif m < -8 or m > 8:
@@ -100,26 +151,53 @@ def siScale(x, minVal=1e-25, allowUnicode=True):
             pref = SI_PREFIXES[m+8]
         else:
             pref = SI_PREFIXES_ASCII[m+8]
-    m1 = -3*m
+    m1 = -3*m*power
     p = 10.**m1
     return (p, pref)
 
 
-def siFormat(x, precision=3, suffix='', space=True, error=None, minVal=1e-25, allowUnicode=True):
+def siFormat(x, precision=3, suffix='', space=True, error=None, minVal=1e-25, allowUnicode=True, power = 1):
     """
-    Return the number x formatted in engineering notation with SI prefix.
-    
-    Example::
-        siFormat(0.0001, suffix='V')  # returns "100 μV"
+    Format a number in engineering notation with SI prefix.
+
+    Parameters
+    ----------
+    x : float
+        The value to be formatted.
+    precision : int, optional
+        Number of decimal places to include in the formatted output. Default is 3.
+    suffix : str, optional
+        Suffix to append to the formatted output.
+    space : bool, optional
+        Whether to include a space between the SI prefix and the value. Default is True.
+    error : float, optional
+        Error value to include in the formatted output.
+    minVal : float, optional
+        Minimum value considered for scaling. Default is 1e-25.
+    allowUnicode : bool, optional
+        Whether to allow Unicode SI prefixes. Default is True.
+    power : int or float, optional
+        Power to which the units are raised. For example, if suffix='m²', the power should be 2.
+        This ensures correct scaling when the units are nonlinear. Supports positive, negative,
+        and non-integral powers. Note: The power only affects the scaling, not the suffix.
+
+    Returns
+    -------
+    str
+        The formatted string in engineering notation with SI prefix.
+
+    Examples
+    --------
+    >>> siFormat(0.0001, suffix='V')
+    '100 μV'
     """
     
     if space is True:
         space = ' '
     if space is False:
         space = ''
-        
-    
-    (p, pref) = siScale(x, minVal, allowUnicode)
+            
+    (p, pref) = siScale(x, minVal, allowUnicode, power)
     if not (len(pref) > 0 and pref[0] == 'e'):
         pref = space + pref
     
@@ -132,15 +210,14 @@ def siFormat(x, precision=3, suffix='', space=True, error=None, minVal=1e-25, al
         else:
             plusminus = " +/- "
         fmt = "%." + str(precision) + "g%s%s%s%s"
-        return fmt % (x*p, pref, suffix, plusminus, siFormat(error, precision=precision, suffix=suffix, space=space, minVal=minVal))
+        return fmt % (x*p, pref, suffix, plusminus, siFormat(error, precision=precision, suffix=suffix, space=space, minVal=minVal, power=power))
 
 
-def siParse(s, regex=FLOAT_REGEX, suffix=None):
+def siParse(s, regex=FLOAT_REGEX_PERIOD, suffix=None):
     """Convert a value written in SI notation to a tuple (number, si_prefix, suffix).
 
-    Example::
-
-        siParse('100 µV")  # returns ('100', 'µ', 'V')
+    Example:
+        siParse('100 µV')  # returns ('100', 'µ', 'V')
 
     Note that in the above example, the µ symbol is the "micro sign" (UTF-8
     0xC2B5), as opposed to the Greek letter mu (UTF-8 0xCEBC).
@@ -190,7 +267,7 @@ def siParse(s, regex=FLOAT_REGEX, suffix=None):
     return m.group('number'), '' if sip is None else sip, '' if suf is None else suf
 
 
-def siEval(s, typ=float, regex=FLOAT_REGEX, suffix=None):
+def siEval(s, typ=float, regex=FLOAT_REGEX_PERIOD, suffix=None, unitPower=1):
     """
     Convert a value written in SI notation to its equivalent prefixless value.
 
@@ -200,13 +277,14 @@ def siEval(s, typ=float, regex=FLOAT_REGEX, suffix=None):
     """
     val, siprefix, suffix = siParse(s, regex, suffix=suffix)
     v = typ(val)
-    return siApply(v, siprefix)
+    return siApply(v, siprefix, unitPower=unitPower)
 
     
-def siApply(val, siprefix):
+def siApply(val, siprefix, unitPower=1):
     """
     """
     n = SI_PREFIX_EXPONENTS[siprefix] if siprefix != '' else 0
+    n = n * unitPower
     if n > 0:
         return val * 10**n
     elif n < 0:
@@ -215,6 +293,13 @@ def siApply(val, siprefix):
     else:
         return val
     
+def float_regex_for_locale(locale = QtCore.QLocale()) -> re.Pattern:
+    """Return a FLOAT_REGEX pattern appropriate for the given locale."""
+    decimal_point = locale.decimalPoint()
+    if decimal_point == ',':
+        return FLOAT_REGEX_COMMA
+    else:
+        return FLOAT_REGEX_PERIOD
 
 class Color(QtGui.QColor):
     def __init__(self, *args):
@@ -226,15 +311,15 @@ class Color(QtGui.QColor):
         
     def __getitem__(self, ind):
         return (self.red, self.green, self.blue, self.alpha)[ind]()
-        
-    
-def mkColor(*args):
+
+
+def mkColor(*args) -> QtGui.QColor:
     """
     Convenience function for constructing QColor from a variety of argument 
     types. Accepted arguments are:
     
     ================ ================================================
-     'c'             one of: r, g, b, c, m, y, k, w
+     'c'             one of: r, g, b, c, m, y, k, w or an SVG color keyword
      R, G, B, [A]    integers 0-255
      (R, G, B, [A])  tuple of integers 0-255
      float           greyscale, 0.0-1.0
@@ -247,51 +332,28 @@ def mkColor(*args):
      QColor          QColor instance; makes a copy.
     ================ ================================================
     """
-    err = 'Not sure how to make a color from "%s"' % str(args)
+    err = lambda: 'Not sure how to make a color from "%s"' % str(args)
     if len(args) == 1:
         if isinstance(args[0], str):
             c = args[0]
             if len(c) == 1:
                 try:
-                    return Colors[c]
+                    return QtGui.QColor(Colors[c])  # return copy
                 except KeyError:
-                    raise ValueError('No color named "%s"' % c)
-            have_alpha = len(c) in [5, 9] and c[0] == '#'  # "#RGBA" and "#RRGGBBAA"
-            if not have_alpha:
-                # try parsing SVG named colors, including "#RGB" and "#RRGGBB".
-                # note that QColor.setNamedColor() treats a 9-char hex string as "#AARRGGBB".
-                qcol = QtGui.QColor()
-                qcol.setNamedColor(c)
+                    raise ValueError('No color named "%s"' % c) from None
+            if c[0] == "#" and len(c) < 10:
+                # match hex color codes
+                c = c[1:]
+                if len(c) < 6:
+                    # convert RGBA to RRGGBBAA
+                    c = "".join([x + x for x in c])
+                return QtGui.QColor(*bytes.fromhex(c))
+            else:
+                # 'c' might be an SVG color keyword
+                qcol = QtGui.QColor(c)
                 if qcol.isValid():
                     return qcol
-                # on failure, fallback to pyqtgraph parsing
-                # this includes the deprecated case of non-#-prefixed hex strings
-            if c[0] == '#':
-                c = c[1:]
-            else:
                 raise ValueError(f"Unable to convert {c} to QColor")
-            if len(c) == 3:
-                r = int(c[0]*2, 16)
-                g = int(c[1]*2, 16)
-                b = int(c[2]*2, 16)
-                a = 255
-            elif len(c) == 4:
-                r = int(c[0]*2, 16)
-                g = int(c[1]*2, 16)
-                b = int(c[2]*2, 16)
-                a = int(c[3]*2, 16)
-            elif len(c) == 6:
-                r = int(c[0:2], 16)
-                g = int(c[2:4], 16)
-                b = int(c[4:6], 16)
-                a = 255
-            elif len(c) == 8:
-                r = int(c[0:2], 16)
-                g = int(c[2:4], 16)
-                b = int(c[4:6], 16)
-                a = int(c[6:8], 16)
-            else:
-                raise ValueError(f"Unknown how to convert string {c} to color")
         elif isinstance(args[0], QtGui.QColor):
             return QtGui.QColor(args[0])
         elif np.issubdtype(type(args[0]), np.floating):
@@ -306,18 +368,18 @@ def mkColor(*args):
             elif len(args[0]) == 2:
                 return intColor(*args[0])
             else:
-                raise TypeError(err)
+                raise TypeError(err())
         elif np.issubdtype(type(args[0]), np.integer):
             return intColor(args[0])
         else:
-            raise TypeError(err)
+            raise TypeError(err())
     elif len(args) == 3:
         r, g, b = args
         a = 255
     elif len(args) == 4:
         r, g, b, a = args
     else:
-        raise TypeError(err)
+        raise TypeError(err())
     args = [int(a) if np.isfinite(a) else 0 for a in (r, g, b, a)]
     return QtGui.QColor(*args)
 
@@ -546,7 +608,7 @@ def colorDistance(colors, metric='CIE76'):
         The `N-1` sequential distances between `N` colors.
     """
     metric = metric.upper()
-    if len(colors) < 1: return np.array([], dtype=np.float)
+    if len(colors) < 1: return np.array([], dtype=float)
     if metric == 'CIE76':
         dist = []
         lab1 = None
@@ -654,8 +716,8 @@ def eq(a, b):
             return True
 
     # Avoid comparing large arrays against scalars; this is expensive and we know it should return False.
-    aIsArr = isinstance(a, (np.ndarray, MetaArray))
-    bIsArr = isinstance(b, (np.ndarray, MetaArray))
+    aIsArr = isinstance(a, np.ndarray)
+    bIsArr = isinstance(b, np.ndarray)
     if (aIsArr or bIsArr) and type(a) != type(b):
         return False
 
@@ -713,16 +775,13 @@ def eq(a, b):
         return e
     elif t is np.bool_:
         return bool(e)
-    elif isinstance(e, np.ndarray) or (hasattr(e, 'implements') and e.implements('MetaArray')):
+    elif isinstance(e, np.ndarray):
         try:   ## disaster: if a is an empty array and b is not, then e.all() is True
             if a.shape != b.shape:
                 return False
         except:
             return False
-        if (hasattr(e, 'implements') and e.implements('MetaArray')):
-            return e.asarray().all()
-        else:
-            return e.all()
+        return e.all()
     else:
         raise TypeError("== operator returned type %s" % str(type(e)))
 
@@ -994,7 +1053,7 @@ def interpolateArray(data, x, default=0.0, order=1):
             sax = f1 * dx[...,ax] + (1-f1) * (1-dx[...,ax])
             sax = sax.reshape(sax.shape + (1,) * (s.ndim-1-sax.ndim))
             s[ax] = sax
-        s = np.product(s, axis=0)
+        s = np.prod(s, axis=0)
         result = fieldData * s
         for i in range(md):
             result = result.sum(axis=0)
@@ -1192,12 +1251,6 @@ def clip_scalar(val, vmin, vmax):
     """ convenience function to avoid using np.clip for scalar values """
     return vmin if val < vmin else vmax if val > vmax else val
 
-# umath.clip was slower than umath.maximum(umath.minimum).
-# See https://github.com/numpy/numpy/pull/20134 for details.
-_win32_clip_workaround_needed = (
-    sys.platform == 'win32' and
-    tuple(map(int, np.__version__.split(".")[:2])) < (1, 22)
-)
 
 def clip_array(arr, vmin, vmax, out=None):
     # replacement for np.clip due to regression in
@@ -1212,36 +1265,20 @@ def clip_array(arr, vmin, vmax, out=None):
         return np.core.umath.minimum(arr, vmax, out=out)
     elif vmax is None:
         return np.core.umath.maximum(arr, vmin, out=out)
-    elif _win32_clip_workaround_needed:
-        if out is None:
-            out = np.empty(arr.shape, dtype=np.find_common_type([arr.dtype], [type(vmax)]))
-        out = np.core.umath.minimum(arr, vmax, out=out)
-        return np.core.umath.maximum(out, vmin, out=out)
-
     else:
         return np.core.umath.clip(arr, vmin, vmax, out=out)
+
+if tuple(map(int, np.__version__.split(".")[:2])) >= (1, 25):
+    # The linked issue above has been closed as of 2023/04/25
+    # and states that the issue has been fixed.
+    # And furthermore, because NumPy 2.0 has made np.core private,
+    # we will just use the native np.clip
+    clip_array = np.clip
 
 
 def _rescaleData_nditer(data_in, scale, offset, work_dtype, out_dtype, clip):
     """Refer to documentation for rescaleData()"""
     data_out = np.empty_like(data_in, dtype=out_dtype)
-
-    # integer clip operations are faster than float clip operations
-    # so test to see if we can perform integer clipping
-    fits_int32 = False
-    if data_in.dtype.kind in 'ui' and out_dtype.kind in 'ui':
-        # estimate whether data range after rescale will fit within an int32.
-        # this means that the input dtype should be an 8-bit or 16-bit integer type.
-        # casting to an int32 will lose the fractional part, therefore the
-        # output dtype must be an integer kind.
-        lim_in = np.iinfo(data_in.dtype)
-        # convert numpy scalar to python scalar to avoid overflow warnings
-        lo = offset.item(0) if isinstance(offset, np.number) else offset
-        dst_bounds = scale * (lim_in.min - lo), scale * (lim_in.max - lo)
-        if dst_bounds[1] < dst_bounds[0]:
-            dst_bounds = dst_bounds[1], dst_bounds[0]
-        lim32 = np.iinfo(np.int32)
-        fits_int32 = lim32.min < dst_bounds[0] and dst_bounds[1] < lim32.max
 
     it = np.nditer([data_in, data_out],
             flags=['external_loop', 'buffered'],
@@ -1258,11 +1295,7 @@ def _rescaleData_nditer(data_in, scale, offset, work_dtype, out_dtype, clip):
 
             # Clip before converting dtype to avoid overflow
             if clip is not None:
-                if fits_int32:
-                    # converts to int32, clips back to float32
-                    np.core.umath.clip(y.astype(np.int32), clip[0], clip[1], out=y)
-                else:
-                    clip_array(y, clip[0], clip[1], out=y)
+                clip_array(y, clip[0], clip[1], out=y)
 
     return data_out
 
@@ -1295,6 +1328,14 @@ def rescaleData(data, scale, offset, dtype=None, clip=None):
     else:
         work_dtype = np.float64
 
+    # from: https://numpy.org/devdocs/numpy_2_0_migration_guide.html#changes-to-numpy-data-type-promotion
+    #   np.array([3], dtype=np.float32) + np.float64(3) will now return a float64 array.
+    #   (The higher precision of the scalar is not ignored.)
+    # this affects us even though we are performing in-place operations.
+    # a solution mentioned in the link above is to convert to a Python scalar.
+    offset = float(offset)
+    scale = float(scale)
+
     cp = getCupy()
     if cp and cp.get_array_module(data) == cp:
         # Cupy does not support nditer
@@ -1310,11 +1351,6 @@ def rescaleData(data, scale, offset, dtype=None, clip=None):
 
         # don't copy if no change in dtype
         return data_out.astype(out_dtype, copy=False)
-
-    numba_fn = getNumbaFunctions()
-    if numba_fn and clip is not None:
-        # if we got here by makeARGB(), clip will not be None at this point
-        return numba_fn.rescaleData(data, scale, offset, out_dtype, clip)
 
     return _rescaleData_nditer(data, scale, offset, work_dtype, out_dtype, clip)
 
@@ -1388,7 +1424,9 @@ def makeARGB(data, lut=None, levels=None, scale=None, useRGBA=False, maskNans=Tr
                    The default is False, which returns in ARGB order for use with QImage 
                    (Note that 'ARGB' is a term used by the Qt documentation; the *actual* order 
                    is BGRA).
-    maskNans       Enable or disable masking NaNs as transparent.
+    maskNans       Enable or disable masking NaNs as transparent. Converting NaN values to ints is
+                   undefined behavior per the C-standard, results may vary across platforms. Highly
+                   recommend leaving this option to the default value of True.
     ============== ==================================================================================
     """
     cp = getCupy()
@@ -1401,7 +1439,7 @@ def makeARGB(data, lut=None, levels=None, scale=None, useRGBA=False, maskNans=Tr
     
     if lut is not None and not isinstance(lut, xp.ndarray):
         lut = xp.array(lut)
-    
+
     if levels is None:
         # automatically decide levels based on data dtype
         if data.dtype.kind == 'u':
@@ -1448,6 +1486,7 @@ def makeARGB(data, lut=None, levels=None, scale=None, useRGBA=False, maskNans=Tr
         nanMask = xp.isnan(data)
         if data.ndim > 2:
             nanMask = xp.any(nanMask, axis=-1)
+
     # Apply levels if given
     if levels is not None:
         if isinstance(levels, xp.ndarray) and levels.ndim == 2:
@@ -1499,13 +1538,8 @@ def makeARGB(data, lut=None, levels=None, scale=None, useRGBA=False, maskNans=Tr
         dst_order = [2, 1, 0, 3]    # B,G,R,A (ARGB32 little endian)
     else:
         dst_order = [1, 2, 3, 0]    # A,R,G,B (ARGB32 big endian)
-        
-    # copy data into image array
-    fastpath = try_fastpath_argb(xp, data, imgData, useRGBA)
 
-    if fastpath:
-        pass
-    elif data.ndim == 2:
+    if data.ndim == 2:
         # This is tempting:
         #   imgData[..., :3] = data[..., xp.newaxis]
         # ..but it turns out this is faster:
@@ -1517,72 +1551,27 @@ def makeARGB(data, lut=None, levels=None, scale=None, useRGBA=False, maskNans=Tr
     else:
         for i in range(0, data.shape[2]):
             imgData[..., dst_order[i]] = data[..., i]
-        
+
     profile('reorder channels')
-    
+
     # add opaque alpha channel if needed
     if data.ndim == 3 and data.shape[2] == 4:
         alpha = True
     else:
         alpha = False
-        if not fastpath:    # fastpath has already filled it in
-            imgData[..., dst_order[3]] = 255
+        imgData[..., dst_order[3]] = 255
 
     # apply nan mask through alpha channel
     if nanMask is not None:
         alpha = True
-        # Workaround for https://github.com/cupy/cupy/issues/4693
-        if xp == cp:
+        # Workaround for https://github.com/cupy/cupy/issues/4693, fixed in cupy 10.0.0
+        if xp == cp and tuple(map(int, cp.__version__.split("."))) < (10, 0):
             imgData[nanMask, :, dst_order[3]] = 0
         else:
             imgData[nanMask, dst_order[3]] = 0
 
     profile('alpha channel')
     return imgData, alpha
-
-
-def try_fastpath_argb(xp, ain, aout, useRGBA):
-    # we only optimize for certain cases
-    # return False if we did not handle it
-    can_handle = xp is np and ain.dtype == xp.ubyte and ain.flags['C_CONTIGUOUS']
-    if not can_handle:
-        return False
-
-    nrows, ncols = ain.shape[:2]
-    nchans = 1 if ain.ndim == 2 else ain.shape[2]
-
-    Format = QtGui.QImage.Format
-
-    if nchans == 1:
-        in_fmt = Format.Format_Grayscale8
-    elif nchans == 3:
-        in_fmt = Format.Format_RGB888
-    else:
-        in_fmt = Format.Format_RGBA8888
-
-    if useRGBA:
-        out_fmt = Format.Format_RGBA8888
-    else:
-        out_fmt = Format.Format_ARGB32
-
-    if in_fmt == out_fmt:
-        aout[:] = ain
-        return True
-
-    npixels_chunk = 512*1024
-    batch = int(npixels_chunk / ncols / nchans)
-    batch = max(1, batch)
-    row_beg = 0
-    while row_beg < nrows:
-        row_end = min(row_beg + batch, nrows)
-        ain_view = ain[row_beg:row_end, ...]
-        aout_view = aout[row_beg:row_end, ...]
-        qimg = QtGui.QImage(ain_view, ncols, ain_view.shape[0], ain.strides[0], in_fmt)
-        qimg = qimg.convertToFormat(out_fmt)
-        aout_view[:] = imageToArray(qimg, copy=False, transpose=False)
-        row_beg = row_end
-
-    return True
 
 
 def ndarray_to_qimage(arr, fmt):
@@ -1841,23 +1830,15 @@ def gaussianFilter(data, sigma):
     return filtered + baseline
     
     
-def downsample(data, n, axis=0, xvals='subsample'):
+def downsample(data, n, axis=0, xvals='subsample', *, nanPolicy='propagate'):
     """Downsample by averaging points together across axis.
     If multiple axes are specified, runs once per axis.
-    If a metaArray is given, then the axis values can be either subsampled
-    or downsampled to match.
     """
-    ma = None
-    if (hasattr(data, 'implements') and data.implements('MetaArray')):
-        ma = data
-        data = data.view(np.ndarray)
-        
-    
     if hasattr(axis, '__len__'):
         if not hasattr(n, '__len__'):
             n = [n]*len(axis)
         for i in range(len(axis)):
-            data = downsample(data, n[i], axis[i])
+            data = downsample(data, n[i], axis[i], nanPolicy=nanPolicy)
         return data
     
     if n <= 1:
@@ -1869,21 +1850,14 @@ def downsample(data, n, axis=0, xvals='subsample'):
     sl = [slice(None)] * data.ndim
     sl[axis] = slice(0, nPts*n)
     d1 = data[tuple(sl)]
-    #print d1.shape, s
     d1.shape = tuple(s)
-    d2 = d1.mean(axis+1)
-    
-    if ma is None:
-        return d2
+    if nanPolicy == 'propagate':
+        d2 = d1.mean(axis+1)
+    elif nanPolicy == 'omit':
+        d2 = np.nanmean(d1, axis+1)
     else:
-        info = ma.infoCopy()
-        if 'values' in info[axis]:
-            if xvals == 'subsample':
-                info[axis]['values'] = info[axis]['values'][::n][:nPts]
-            elif xvals == 'downsample':
-                info[axis]['values'] = downsample(info[axis]['values'], n)
-        return MetaArray(d2, info=info)
-
+        raise ValueError(f"Keyword argument {nanPolicy=} must be one of {'propagate', 'omit'}.")
+    return d2
 
 def _compute_backfill_indices(isfinite):
     # the presence of inf/nans result in an empty QPainterPath being generated
@@ -2082,11 +2056,12 @@ def arrayToQPath(x, y, connect='all', finiteCheck=True):
     a ``QDataStream`` object is created and the QDataStream >> QPainterPath
     operator is used to pass the data.  The memory format is as follows
 
-    numVerts(i4)
-    0(i4)   x(f8)   y(f8)    <-- 0 means this vertex does not connect
-    1(i4)   x(f8)   y(f8)    <-- 1 means this vertex connects to the previous vertex
-    ...
-    cStart(i4)   fillRule(i4)
+    .. code-block:
+        numVerts(i4)
+        0(i4)   x(f8)   y(f8)    <-- 0 means this vertex does not connect
+        1(i4)   x(f8)   y(f8)    <-- 1 means this vertex connects to the previous vertex
+        ...
+        cStart(i4)   fillRule(i4)
     
     see: https://github.com/qt/qtbase/blob/dev/src/gui/painting/qpainterpath.cpp
 
@@ -2134,15 +2109,22 @@ def arrayToQPath(x, y, connect='all', finiteCheck=True):
     if hasattr(path, 'reserve'):    # Qt 5.13
         path.reserve(n)
 
-    if hasattr(path, 'reserve') and getConfigOption('enableExperimental'):
+    if getConfigOption('enableExperimental'):
         backstore = None
         arr = Qt.internals.get_qpainterpath_element_array(path, n)
     else:
-        backstore = QtCore.QByteArray()
-        backstore.resize(4 + n*20 + 8)      # contents uninitialized
-        backstore.replace(0, 4, struct.pack('>i', n))
-        # cStart, fillRule (Qt.FillRule.OddEvenFill)
-        backstore.replace(4+n*20, 8, struct.pack('>ii', 0, 0))
+        if Qt.internals.qbytearray_leaks():
+            backstore = bytearray(4 + n*20 + 8) # initialized to zero
+            struct.pack_into('>i', backstore, 0, n)
+            # cStart, fillRule (Qt.FillRule.OddEvenFill)
+            struct.pack_into('>ii', backstore, 4+n*20, 0, 0)
+        else:
+            backstore = QtCore.QByteArray()
+            backstore.resize(4 + n*20 + 8)      # contents uninitialized
+            backstore.replace(0, 4, struct.pack('>i', n))
+            # cStart, fillRule (Qt.FillRule.OddEvenFill)
+            backstore.replace(4+n*20, 8, struct.pack('>ii', 0, 0))
+
         arr = np.frombuffer(backstore, dtype=[('c', '>i4'), ('x', '>f8'), ('y', '>f8')],
             count=n, offset=4)
 
@@ -2163,8 +2145,12 @@ def arrayToQPath(x, y, connect='all', finiteCheck=True):
 
     # decide which points are connected by lines
     if connect == 'pairs':
+        mask = 1                # by default connect every 2nd point to every 1st one
+        if finiteCheck and not all_isfinite:
+            mask = isfinite[:len(x)//2 * 2]             # ensure even number of points
+            mask = mask[0::2] & mask[1::2]              # don't connect non-finite pairs
         arr['c'][0::2] = 0
-        arr['c'][1::2] = 1  # connect every 2nd point to every 1st one
+        arr['c'][1::2] = mask
     elif connect == 'array':
         # Let's call a point with either x or y being nan is an invalid point.
         # A point will anyway not connect to an invalid point regardless of the
@@ -2178,29 +2164,25 @@ def arrayToQPath(x, y, connect='all', finiteCheck=True):
     if isinstance(backstore, QtCore.QByteArray):
         ds = QtCore.QDataStream(backstore)
         ds >> path
+    elif isinstance(backstore, bytearray):
+        qba = QtCore.QByteArray(backstore)  # a copy is made here
+        ds = QtCore.QDataStream(qba)
+        ds >> path
     return path
 
 def ndarray_from_qpolygonf(polyline):
-    nbytes = 2 * len(polyline) * 8
-    if QT_LIB.startswith('PyQt'):
-        buffer = polyline.data()
-        if buffer is None:
-            buffer = Qt.sip.voidptr(0)
-        buffer.setsize(nbytes)
-    else:
-        ptr = polyline.data()
-        if ptr is None:
-            ptr = 0
-        buffer = Qt.shiboken.VoidPtr(ptr, nbytes, True)
-    memory = np.frombuffer(buffer, np.double).reshape((-1, 2))
-    return memory
+    # polyline.data() will be None if the pointer was null.
+    # voidptr(None) is the same as voidptr(0).
+    vp = Qt.compat.voidptr(polyline.data(), len(polyline)*2*8, True)
+    return np.frombuffer(vp, dtype=np.float64).reshape((-1, 2))
 
 def create_qpolygonf(size):
     polyline = QtGui.QPolygonF()
-    if QT_LIB.startswith('PyQt'):
-        polyline.fill(QtCore.QPointF(), size)
-    else:
+    if hasattr(polyline, 'resize'):
+        # (PySide) and (PyQt6 >= 6.3.1)
         polyline.resize(size)
+    else:
+        polyline.fill(QtCore.QPointF(), size)
     return polyline
 
 def arrayToQPolygonF(x, y):
@@ -2927,7 +2909,7 @@ def isosurface(data, level):
     cutEdges = np.zeros([x+1 for x in index.shape]+[3], dtype=np.uint32)
     edges = edgeTable[index]
     for i, shift in enumerate(edgeShifts[:12]):        
-        slices = [slice(shift[j],cutEdges.shape[j]+(shift[j]-1)) for j in range(3)]
+        slices = [slice(int(shift[j]),cutEdges.shape[j]+(int(shift[j])-1)) for j in range(3)]
         cutEdges[slices[0], slices[1], slices[2], shift[3]] += edges & 2**i
     
     ## for each cut edge, interpolate to see where exactly the edge is cut and generate vertex positions
@@ -3212,12 +3194,22 @@ def disconnect(signal, slot):
     """
     while True:
         try:
-            signal.disconnect(slot)
+            success = signal.disconnect(slot)
+            if success is None:     # PyQt
+                success = True
+        except (
+            TypeError,
+            RuntimeError,
+            SystemError  # PySide6 6.7.1+ will emit this
+        ):
+            success = False
+
+        if success:
             return True
-        except (TypeError, RuntimeError):
-            slot = reload.getPreviousVersion(slot)
-            if slot is None:
-                return False
+
+        slot = reload.getPreviousVersion(slot)
+        if slot is None:
+            return False
 
 
 class SignalBlock(object):

@@ -135,8 +135,7 @@ Or in this case, we can make them accumulate by age:
 
 Package for release:
 ```bash
-git tag v1.5
-make package VERSION=v1.5
+git tag v1.6
+make package VERSION=v1.6
 ```
-
 

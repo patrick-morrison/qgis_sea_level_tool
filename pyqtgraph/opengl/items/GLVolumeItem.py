@@ -1,8 +1,16 @@
-from OpenGL.GL import *  # noqa
+import importlib
+
+from OpenGL import GL
+from OpenGL.GL import shaders
 import numpy as np
 
-from ...Qt import QtGui
+from ...Qt import QtGui, QT_LIB
 from ..GLGraphicsItem import GLGraphicsItem
+
+if QT_LIB in ["PyQt5", "PySide2"]:
+    QtOpenGL = QtGui
+else:
+    QtOpenGL = importlib.import_module(f"{QT_LIB}.QtOpenGL")
 
 __all__ = ['GLVolumeItem']
 
@@ -13,8 +21,9 @@ class GLVolumeItem(GLGraphicsItem):
     Displays volumetric data. 
     """
     
+    _shaderProgram = None
     
-    def __init__(self, data, sliceDensity=1, smooth=True, glOptions='translucent'):
+    def __init__(self, data, sliceDensity=1, smooth=True, glOptions='translucent', parentItem=None):
         """
         ==============  =======================================================================================
         **Arguments:**
@@ -24,55 +33,98 @@ class GLVolumeItem(GLGraphicsItem):
         ==============  =======================================================================================
         """
         
+        super().__init__()
+        self.setGLOptions(glOptions)
         self.sliceDensity = sliceDensity
         self.smooth = smooth
         self.data = None
         self._needUpload = False
         self.texture = None
-        GLGraphicsItem.__init__(self)
-        self.setGLOptions(glOptions)
+        self.m_vbo_position = QtOpenGL.QOpenGLBuffer(QtOpenGL.QOpenGLBuffer.Type.VertexBuffer)
+        self.setParentItem(parentItem)
         self.setData(data)
-        
+
     def setData(self, data):
         self.data = data
         self._needUpload = True
         self.update()
         
     def _uploadData(self):
-        glEnable(GL_TEXTURE_3D)
         if self.texture is None:
-            self.texture = glGenTextures(1)
-        glBindTexture(GL_TEXTURE_3D, self.texture)
-        if self.smooth:
-            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-        else:
-            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
-            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER)
-        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER)
-        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER)
+            self.texture = GL.glGenTextures(1)
+        GL.glBindTexture(GL.GL_TEXTURE_3D, self.texture)
+        filt = GL.GL_LINEAR if self.smooth else GL.GL_NEAREST
+        GL.glTexParameteri(GL.GL_TEXTURE_3D, GL.GL_TEXTURE_MIN_FILTER, filt)
+        GL.glTexParameteri(GL.GL_TEXTURE_3D, GL.GL_TEXTURE_MAG_FILTER, filt)
+        GL.glTexParameteri(GL.GL_TEXTURE_3D, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP_TO_BORDER)
+        GL.glTexParameteri(GL.GL_TEXTURE_3D, GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP_TO_BORDER)
+        GL.glTexParameteri(GL.GL_TEXTURE_3D, GL.GL_TEXTURE_WRAP_R, GL.GL_CLAMP_TO_BORDER)
         shape = self.data.shape
-        
-        ## Test texture dimensions first
-        glTexImage3D(GL_PROXY_TEXTURE_3D, 0, GL_RGBA, shape[0], shape[1], shape[2], 0, GL_RGBA, GL_UNSIGNED_BYTE, None)
-        if glGetTexLevelParameteriv(GL_PROXY_TEXTURE_3D, 0, GL_TEXTURE_WIDTH) == 0:
-            raise Exception("OpenGL failed to create 3D texture (%dx%dx%d); too large for this hardware." % shape[:3])
+
+        context = QtGui.QOpenGLContext.currentContext()
+        if not context.isOpenGLES():
+            ## Test texture dimensions first
+            GL.glTexImage3D(GL.GL_PROXY_TEXTURE_3D, 0, GL.GL_RGBA, shape[0], shape[1], shape[2], 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, None)
+            if GL.glGetTexLevelParameteriv(GL.GL_PROXY_TEXTURE_3D, 0, GL.GL_TEXTURE_WIDTH) == 0:
+                raise Exception("OpenGL failed to create 3D texture (%dx%dx%d); too large for this hardware." % shape[:3])
         
         data = np.ascontiguousarray(self.data.transpose((2,1,0,3)))
-        glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA, shape[0], shape[1], shape[2], 0, GL_RGBA, GL_UNSIGNED_BYTE, data)
-        glDisable(GL_TEXTURE_3D)
+        GL.glTexImage3D(GL.GL_TEXTURE_3D, 0, GL.GL_RGBA, shape[0], shape[1], shape[2], 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, data)
+        GL.glBindTexture(GL.GL_TEXTURE_3D, 0)
         
+        all_vertices = []
+
         self.lists = {}
         for ax in [0,1,2]:
             for d in [-1, 1]:
-                l = glGenLists(1)
-                self.lists[(ax,d)] = l
-                glNewList(l, GL_COMPILE)
-                self.drawVolume(ax, d)
-                glEndList()
+                vertices = self.drawVolume(ax, d)
+                self.lists[(ax,d)] = (len(all_vertices), len(vertices))
+                all_vertices.extend(vertices)
+
+        pos = np.array(all_vertices, dtype=np.float32)
+        vbo = self.m_vbo_position
+        if not vbo.isCreated():
+            vbo.create()
+        vbo.bind()
+        vbo.allocate(pos, pos.nbytes)
+        vbo.release()
         
         self._needUpload = False
+
+    @staticmethod
+    def getShaderProgram():
+        klass = GLVolumeItem
+
+        if klass._shaderProgram is not None:
+            return klass._shaderProgram
+
+        ctx = QtGui.QOpenGLContext.currentContext()
+        fmt = ctx.format()
+
+        if ctx.isOpenGLES():
+            if fmt.version() >= (3, 0):
+                glsl_version = "#version 300 es\n"
+                sources = SHADER_CORE
+            else:
+                glsl_version = ""
+                sources = SHADER_LEGACY
+        else:
+            if fmt.version() >= (3, 1):
+                glsl_version = "#version 140\n"
+                sources = SHADER_CORE
+            else:
+                glsl_version = ""
+                sources = SHADER_LEGACY
+
+        compiled = [shaders.compileShader([glsl_version, v], k) for k, v in sources.items()]
+        program = shaders.compileProgram(*compiled)
+
+        GL.glBindAttribLocation(program, 0, "a_position")
+        GL.glBindAttribLocation(program, 1, "a_texcoord")
+        GL.glLinkProgram(program)
+
+        klass._shaderProgram = program
+        return program
         
     def paint(self):
         if self.data is None:
@@ -82,27 +134,48 @@ class GLVolumeItem(GLGraphicsItem):
             self._uploadData()
         
         self.setupGLState()
-        
-        glEnable(GL_TEXTURE_3D)
-        glBindTexture(GL_TEXTURE_3D, self.texture)
-        
-        #glEnable(GL_DEPTH_TEST)
-        #glDisable(GL_CULL_FACE)
-        #glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        #glEnable( GL_BLEND )
-        #glEnable( GL_ALPHA_TEST )
-        glColor4f(1,1,1,1)
 
-        view = self.view()
+        mat_mvp = self.mvpMatrix()
+        mat_mvp = np.array(mat_mvp.data(), dtype=np.float32)
+
+        # calculate camera coordinates in this model's local space.
+        # (in eye space, the camera is at the origin)
+        modelview = self.modelViewMatrix()
+        cam_local = modelview.inverted()[0].map(QtGui.QVector3D())
+
+        # in local space, the model spans (0,0,0) to data.shape
         center = QtGui.QVector3D(*[x/2. for x in self.data.shape[:3]])
-        cam = self.mapFromParent(view.cameraPosition()) - center
-        #print "center", center, "cam", view.cameraPosition(), self.mapFromParent(view.cameraPosition()), "diff", cam
+        cam = cam_local - center
         cam = np.array([cam.x(), cam.y(), cam.z()])
         ax = np.argmax(abs(cam))
         d = 1 if cam[ax] > 0 else -1
-        glCallList(self.lists[(ax,d)])  ## draw axes
-        glDisable(GL_TEXTURE_3D)
-                
+        offset, num_vertices = self.lists[(ax,d)]
+
+        program = self.getShaderProgram()
+
+        loc_pos, loc_tex = 0, 1
+        self.m_vbo_position.bind()
+        GL.glVertexAttribPointer(loc_pos, 3, GL.GL_FLOAT, False, 6*4, None)
+        GL.glVertexAttribPointer(loc_tex, 3, GL.GL_FLOAT, False, 6*4, GL.GLvoidp(3*4))
+        self.m_vbo_position.release()
+        enabled_locs = [loc_pos, loc_tex]
+
+        GL.glBindTexture(GL.GL_TEXTURE_3D, self.texture)
+
+        for loc in enabled_locs:
+            GL.glEnableVertexAttribArray(loc)
+
+        with program:
+            loc = GL.glGetUniformLocation(program, "u_mvp")
+            GL.glUniformMatrix4fv(loc, 1, False, mat_mvp)
+
+            GL.glDrawArrays(GL.GL_TRIANGLES, offset, num_vertices)
+
+        for loc in enabled_locs:
+            GL.glDisableVertexAttribArray(loc)
+
+        GL.glBindTexture(GL.GL_TEXTURE_3D, 0)
+
     def drawVolume(self, ax, d):
         imax = [0,1,2]
         imax.remove(ax)
@@ -131,8 +204,9 @@ class GLVolumeItem(GLGraphicsItem):
         r = list(range(slices))
         if d == -1:
             r = r[::-1]
-            
-        glBegin(GL_QUADS)
+
+        vertices = []
+
         tzVals = np.linspace(nudge[ax], 1.0-nudge[ax], slices)
         vzVals = np.linspace(0, self.data.shape[ax], slices)
         for i in r:
@@ -149,80 +223,57 @@ class GLVolumeItem(GLGraphicsItem):
             vp[2][ax] = w
             vp[3][ax] = w
             
-            
-            glTexCoord3f(*tp[0])
-            glVertex3f(*vp[0])
-            glTexCoord3f(*tp[1])
-            glVertex3f(*vp[1])
-            glTexCoord3f(*tp[2])
-            glVertex3f(*vp[2])
-            glTexCoord3f(*tp[3])
-            glVertex3f(*vp[3])
-        glEnd()
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        ## Interesting idea:
-        ## remove projection/modelview matrixes, recreate in texture coords. 
-        ## it _sorta_ works, but needs tweaking.
-        #mvm = glGetDoublev(GL_MODELVIEW_MATRIX)
-        #pm = glGetDoublev(GL_PROJECTION_MATRIX)
-        #m = QtGui.QMatrix4x4(mvm.flatten()).inverted()[0]
-        #p = QtGui.QMatrix4x4(pm.flatten()).inverted()[0]
-        
-        #glMatrixMode(GL_PROJECTION)
-        #glPushMatrix()
-        #glLoadIdentity()
-        #N=1
-        #glOrtho(-N,N,-N,N,-100,100)
-        
-        #glMatrixMode(GL_MODELVIEW)
-        #glLoadIdentity()
-        
-        
-        #glMatrixMode(GL_TEXTURE)
-        #glLoadIdentity()
-        #glMultMatrixf(m.copyDataTo())
-        
-        #view = self.view()
-        #w = view.width()
-        #h = view.height()
-        #dist = view.opts['distance']
-        #fov = view.opts['fov']
-        #nearClip = dist * .1
-        #farClip = dist * 5.
-        #r = nearClip * np.tan(fov)
-        #t = r * h / w
-        
-        #p = QtGui.QMatrix4x4()
-        #p.frustum( -r, r, -t, t, nearClip, farClip)
-        #glMultMatrixf(p.inverted()[0].copyDataTo())
-        
-        
-        #glBegin(GL_QUADS)
-        
-        #M=1
-        #for i in range(500):
-            #z = i/500.
-            #w = -i/500.
-            #glTexCoord3f(-M, -M, z)
-            #glVertex3f(-N, -N, w)
-            #glTexCoord3f(M, -M, z)
-            #glVertex3f(N, -N, w)
-            #glTexCoord3f(M, M, z)
-            #glVertex3f(N, N, w)
-            #glTexCoord3f(-M, M, z)
-            #glVertex3f(-N, N, w)
-        #glEnd()
-        #glDisable(GL_TEXTURE_3D)
+            # assuming 0-1-2-3 are the BL, BR, TR, TL vertices of a quad
+            for idx in [0, 1, 3, 1, 2, 3]:  # 2 triangles per quad
+                vtx = tuple(vp[idx]) + tuple(tp[idx])
+                vertices.append(vtx)
 
-        #glMatrixMode(GL_PROJECTION)
-        #glPopMatrix()
-        
-        
+        return vertices
+
+
+SHADER_LEGACY = {
+    GL.GL_VERTEX_SHADER : """
+        uniform mat4 u_mvp;
+        attribute vec4 a_position;
+        attribute vec3 a_texcoord;
+        varying vec3 v_texcoord;
+        void main() {
+            gl_Position = u_mvp * a_position;
+            v_texcoord = a_texcoord;
+        }
+    """,
+    GL.GL_FRAGMENT_SHADER : """
+        uniform sampler3D u_texture;
+        varying vec3 v_texcoord;
+        void main()
+        {
+            gl_FragColor = texture3D(u_texture, v_texcoord);
+        }
+    """,
+}
+
+SHADER_CORE = {
+    GL.GL_VERTEX_SHADER : """
+        uniform mat4 u_mvp;
+        in vec4 a_position;
+        in vec3 a_texcoord;
+        out vec3 v_texcoord;
+        void main() {
+            gl_Position = u_mvp * a_position;
+            v_texcoord = a_texcoord;
+        }
+    """,
+    GL.GL_FRAGMENT_SHADER : """
+        #ifdef GL_ES
+        precision mediump float;
+        precision lowp sampler3D;
+        #endif
+        uniform sampler3D u_texture;
+        in vec3 v_texcoord;
+        out vec4 fragColor;
+        void main()
+        {
+            fragColor = texture(u_texture, v_texcoord);
+        }
+    """,
+}

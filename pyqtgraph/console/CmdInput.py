@@ -1,4 +1,4 @@
-from ..Qt import QtCore, QtWidgets
+from ..Qt import QtCore, QtGui, QtWidgets
 
 
 class CmdInput(QtWidgets.QLineEdit):
@@ -7,9 +7,21 @@ class CmdInput(QtWidgets.QLineEdit):
     
     def __init__(self, parent):
         QtWidgets.QLineEdit.__init__(self, parent)
+        self.ps1 = ">>> "
+        self.ps2 = "... "
         self.history = [""]
         self.ptr = 0
+        font = QtGui.QFont("monospace")
+        font.setStyleHint(QtGui.QFont.StyleHint.TypeWriter, QtGui.QFont.StyleStrategy.PreferAntialias)
+        self.setFont(font)
+        self.setMultiline(False)
     
+    def setMultiline(self, ml):
+        if ml:
+            self.setPlaceholderText(self.ps2)
+        else:
+            self.setPlaceholderText(self.ps1)
+
     def keyPressEvent(self, ev):
         if ev.key() == QtCore.Qt.Key.Key_Up:
             if self.ptr < len(self.history) - 1:

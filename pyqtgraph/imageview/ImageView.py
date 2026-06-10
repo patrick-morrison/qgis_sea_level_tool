@@ -21,11 +21,11 @@ from .. import debug as debug
 from .. import functions as fn
 from .. import getConfigOption
 from ..graphicsItems.GradientEditorItem import addGradientListToDocstring
-from ..graphicsItems.ImageItem import *
-from ..graphicsItems.InfiniteLine import *
-from ..graphicsItems.LinearRegionItem import *
-from ..graphicsItems.ROI import *
-from ..graphicsItems.ViewBox import *
+from ..graphicsItems.ImageItem import ImageItem
+from ..graphicsItems.InfiniteLine import InfiniteLine
+from ..graphicsItems.LinearRegionItem import LinearRegionItem
+from ..graphicsItems.ROI import ROI
+from ..graphicsItems.ViewBox import ViewBox
 from ..graphicsItems.VTickGroup import VTickGroup
 from ..Qt import QtCore, QtGui, QtWidgets
 from ..SignalProxy import SignalProxy
@@ -88,6 +88,8 @@ class ImageView(QtWidgets.QWidget):
             imageItem=None,
             levelMode='mono',
             discreteTimeLine=False,
+            roi=None,
+            normRoi=None,
             *args,
     ):
         """
@@ -116,6 +118,10 @@ class ImageView(QtWidgets.QWidget):
             See the *levelMode* argument to :func:`HistogramLUTItem.__init__() <pyqtgraph.HistogramLUTItem.__init__>`
         discreteTimeLine : bool
             Whether to snap to xvals / frame numbers when interacting with the timeline position.
+        roi : ROI
+            If specified, this object is used as ROI for the plot feature. Must be an instance of ROI.
+        normRoi : ROI
+            If specified, this object is used as ROI for the normalization feature. Must be an instance of ROI.
         """
         QtWidgets.QWidget.__init__(self, parent, *args)
         self._imageLevels = None  # [(min, max), ...] per channel image metrics
@@ -145,12 +151,18 @@ class ImageView(QtWidgets.QWidget):
         
         self.ui.normGroup.hide()
 
-        self.roi = PlotROI(10)
+        if roi is None:
+            self.roi = PlotROI(10)
+        else:
+            self.roi = roi
         self.roi.setZValue(20)
         self.view.addItem(self.roi)
         self.roi.hide()
-        self.normRoi = PlotROI(10)
-        self.normRoi.setPen('y')
+        if normRoi is None:
+            self.normRoi = PlotROI(10)
+            self.normRoi.setPen('y')
+        else:
+            self.normRoi = normRoi
         self.normRoi.setZValue(20)
         self.view.addItem(self.normRoi)
         self.normRoi.hide()
@@ -219,7 +231,11 @@ class ImageView(QtWidgets.QWidget):
         self.ui.normTimeRangeCheck.clicked.connect(self.updateNorm)
         self.playTimer.timeout.connect(self.timeout)
         
-        self.normProxy = SignalProxy(self.normRgn.sigRegionChanged, slot=self.updateNorm)
+        self.normProxy = SignalProxy(
+            self.normRgn.sigRegionChanged,
+            slot=self.updateNorm,
+            threadSafe=False,
+        )
         self.normRoi.sigRegionChangeFinished.connect(self.updateNorm)
         
         self.ui.roiPlot.registerPlot(self.name + '_ROI')
@@ -297,9 +313,6 @@ class ImageView(QtWidgets.QWidget):
         """
         profiler = debug.Profiler()
 
-        if hasattr(img, 'implements') and img.implements('MetaArray'):
-            img = img.asarray()
-
         if not isinstance(img, np.ndarray):
             required = ['dtype', 'max', 'min', 'ndim', 'shape', 'size']
             if not all(hasattr(img, attr) for attr in required):
@@ -346,13 +359,7 @@ class ImageView(QtWidgets.QWidget):
         if xvals is not None:
             self.tVals = xvals
         elif axes['t'] is not None:
-            if hasattr(img, 'xvals'):
-                try:
-                    self.tVals = img.xvals(axes['t'])
-                except:
-                    self.tVals = np.arange(img.shape[axes['t']])
-            else:
-                self.tVals = np.arange(img.shape[axes['t']])
+            self.tVals = np.arange(img.shape[axes['t']])
 
         profiler()
 
@@ -457,8 +464,9 @@ class ImageView(QtWidgets.QWidget):
         """
         if self.image is None:
             return 0
-        else:
-            return self.image.shape[0]
+        elif self.axes['t'] is not None:
+            return self.image.shape[self.axes['t']]
+        return 1
 
     def autoLevels(self):
         """Set the min/max intensity levels automatically to match the image data."""
@@ -563,6 +571,7 @@ class ImageView(QtWidgets.QWidget):
         else:
             self.play(0)
         
+    @QtCore.Slot()
     def timeout(self):
         now = perf_counter()
         dt = now - self.lastPlayTime
@@ -590,6 +599,7 @@ class ImageView(QtWidgets.QWidget):
         if self.axes['t'] is not None:
             self.setCurrentIndex(self.currentIndex + n)
 
+    @QtCore.Slot()
     def normRadioChanged(self):
         self.imageDisp = None
         self.updateImage()
@@ -597,6 +607,7 @@ class ImageView(QtWidgets.QWidget):
         self.roiChanged()
         self.sigProcessingChanged.emit(self)
     
+    @QtCore.Slot()
     def updateNorm(self):
         if self.ui.normTimeRangeCheck.isChecked():
             self.normRgn.show()
@@ -615,6 +626,7 @@ class ImageView(QtWidgets.QWidget):
             self.roiChanged()
             self.sigProcessingChanged.emit(self)
 
+    @QtCore.Slot(bool)
     def normToggled(self, b):
         self.ui.normGroup.setVisible(b)
         self.normRoi.setVisible(b and self.ui.normROICheck.isChecked())
@@ -623,6 +635,7 @@ class ImageView(QtWidgets.QWidget):
     def hasTimeAxis(self):
         return 't' in self.axes and self.axes['t'] is not None
 
+    @QtCore.Slot()
     def roiClicked(self):
         showRoiPlot = False
         if self.ui.roiBtn.isChecked():
@@ -657,6 +670,7 @@ class ImageView(QtWidgets.QWidget):
             
         self.ui.roiPlot.setVisible(showRoiPlot)
 
+    @QtCore.Slot()
     def roiChanged(self):
         # Extract image data from ROI
         if self.image is None:
@@ -790,6 +804,7 @@ class ImageView(QtWidgets.QWidget):
                 
         return norm
         
+    @QtCore.Slot()
     def timeLineChanged(self):
         if not self.ignoreTimeLine:
             self.play(0)
@@ -890,7 +905,8 @@ class ImageView(QtWidgets.QWidget):
             self.updateImage()
         else:
             self.imageItem.save(fileName)
-            
+
+    @QtCore.Slot()
     def exportClicked(self):
         fileName, _ = QtWidgets.QFileDialog.getSaveFileName()
         if not fileName:
@@ -907,6 +923,7 @@ class ImageView(QtWidgets.QWidget):
         self.exportAction.triggered.connect(self.exportClicked)
         self.menu.addAction(self.exportAction)
         
+    @QtCore.Slot()
     def menuClicked(self):
         if self.menu is None:
             self.buildMenu()
